@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="core" cx="35%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="#B9FBFF"/>
+      <stop offset="42%" stop-color="#6C63FF"/>
+      <stop offset="100%" stop-color="#160F3C"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF9EC4"/>
+      <stop offset="50%" stop-color="#7DF9E4"/>
+      <stop offset="100%" stop-color="#B9B4FF"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="#0B0A16"/>
+
+  <g opacity="0.35" fill="#7DF9E4">
+    <circle cx="90" cy="120" r="2.5">
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="430" cy="96" r="2">
+      <animate attributeName="opacity" values="1;0.2;1" dur="5.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="452" cy="404" r="3">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="3.4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="72" cy="420" r="2">
+      <animate attributeName="opacity" values="1;0.25;1" dur="6.2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <circle cx="256" cy="256" r="120" fill="url(#core)" filter="url(#glow)">
+    <animate attributeName="r" values="112;132;112" dur="7s" repeatCount="indefinite"/>
+  </circle>
+
+  <g fill="none" stroke="url(#ring)" stroke-width="3" opacity="0.9">
+    <ellipse cx="256" cy="256" rx="186" ry="66">
+      <animateTransform attributeName="transform" type="rotate" values="-18 256 256;342 256 256" dur="16s" repeatCount="indefinite"/>
+    </ellipse>
+    <ellipse cx="256" cy="256" rx="150" ry="150" opacity="0.55" stroke-dasharray="6 14">
+      <animateTransform attributeName="transform" type="rotate" values="0 256 256;-360 256 256" dur="24s" repeatCount="indefinite"/>
+    </ellipse>
+    <ellipse cx="256" cy="256" rx="196" ry="110" opacity="0.5">
+      <animateTransform attributeName="transform" type="rotate" values="62 256 256;-298 256 256" dur="22s" repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+
+  <circle r="7" fill="#FF9EC4" filter="url(#glow)">
+    <animateMotion dur="9s" repeatCount="indefinite" path="M256,70 A186,66 0 1,0 256,442 A186,66 0 1,0 256,70"/>
+  </circle>
+
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1"/>
+</svg>

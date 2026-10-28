@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: transparent;
+    touch-action: none; overscroll-behavior: none;
+    font-family: -apple-system, "Roboto", sans-serif;
+  }
+  #stage {
+    position: absolute; left: 50%; top: 50%;
+    transform-origin: 50% 50%;
+    will-change: transform;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #stage > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  #error {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    color: #FF8A9B; font-size: 15px; padding: 24px; text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div id="stage"><!--SVG_CONTENT--></div>
+  <div id="error"></div>
+<script>
+(function () {
+  "use strict";
+
+  var stage = document.getElementById("stage");
+  var errBox = document.getElementById("error");
+  var S = { zoom: 1, base: 1, x: 0, y: 0, w: 300, h: 300, ready: false, paused: false };
+  var lastZoomPct = -1;
+  var pauseStyle = null;
+
+  function bridge(name, args) {
+    try {
+      if (window.Android && typeof window.Android[name] === "function") {
+        window.Android[name].apply(window.Android, args);
+      }
+    } catch (e) { /* ignore bridge errors */ }
+  }
+
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+
+  function svgEl() { return stage.querySelector("svg"); }
+
+  function intrinsicSize(svg) {
+    var vb = svg.viewBox && svg.viewBox.baseVal;
+    if (vb && vb.width > 0 && vb.height > 0) {
+      return { w: vb.width, h: vb.height };
+    }
+    var w = parseFloat(svg.getAttribute("width"));
+    var h = parseFloat(svg.getAttribute("height"));
+    if (!w || !h) {
+      var r = svg.getBoundingClientRect();
+      w = w || (r.width > 0 ? r.width : 300);
+      h = h || (r.height > 0 ? r.height : 300);
+    }
+    return { w: w, h: h };
+  }
+
+  function notifyZoom(force) {
+    var pct = Math.round(S.zoom * 100);
+    if (force || pct !== lastZoomPct) {
+      lastZoomPct = pct;
+      bridge("zoom", [S.zoom]);
+    }
+  }
+
+  function apply() {
+    var s = S.base * S.zoom;
+    stage.style.left = (window.innerWidth / 2 + S.x) + "px";
+    stage.style.top = (window.innerHeight / 2 + S.y) + "px";
+    stage.style.transform = "translate(-50%, -50%) scale(" + s + ")";
+    notifyZoom(false);
+  }
+
+  function layout() {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    if (S.w <= 0 || S.h <= 0) return;
+    S.base = Math.min(vw / S.w, vh / S.h);
+    apply();
+  }
+
+  function init() {
+    var svg = svgEl();
+    if (!svg) {
+      errBox.textContent = "Không tìm thấy phần tử <svg> trong tệp.";
+      errBox.style.display = "flex";
+      bridge("error", ["Không tìm thấy phần tử <svg> trong tệp."]);
+      return;
+    }
+    var size = intrinsicSize(svg);
+    S.w = size.w;
+    S.h = size.h;
+
+    if (!svg.getAttribute("viewBox")) {
+      svg.setAttribute("viewBox", "0 0 " + S.w + " " + S.h);
+    }
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+    svg.style.display = "block";
+
+    stage.style.width = S.w + "px";
+    stage.style.height = S.h + "px";
+
+    layout();
+    S.ready = true;
+    notifyZoom(true);
+    bridge("ready", [S.w, S.h]);
+  }
+
+  /* ---------------- gestures ---------------- */
+  var pointers = new Map();
+  var drag = null;
+  var pinch = null;
+  var lastTapTime = 0;
+  var lastTapX = 0, lastTapY = 0;
+
+  function centerOf() {
+    return { x: window.innerWidth / 2 + S.x, y: window.innerHeight / 2 + S.y };
+  }
+
+  function zoomAt(newZoom, anchorX, anchorY) {
+    newZoom = clamp(newZoom, 0.02, 40);
+    var c = centerOf();
+    var s0 = S.base * S.zoom;
+    var s1 = S.base * newZoom;
+    var ax = (anchorX - c.x) / s0;
+    var ay = (anchorY - c.y) / s0;
+    S.zoom = newZoom;
+    S.x = (anchorX - ax * s1) - window.innerWidth / 2;
+    S.y = (anchorY - ay * s1) - window.innerHeight / 2;
+    apply();
+  }
+
+  var el = document.body;
+
+  el.addEventListener("pointerdown", function (e) {
+    el.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 1) {
+      drag = { px: e.clientX, py: e.clientY, ox: S.x, oy: S.y, moved: 0 };
+      pinch = null;
+    } else if (pointers.size === 2) {
+      var pts = Array.from(pointers.values());
+      var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      pinch = {
+        dist: dist,
+        zoom: S.zoom,
+        mid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+        center: centerOf()
+      };
+      drag = null;
+    }
+  }, { passive: true });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 1 && drag) {
+      var dx = e.clientX - drag.px;
+      var dy = e.clientY - drag.py;
+      drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
+      S.x = drag.ox + dx;
+      S.y = drag.oy + dy;
+      apply();
+    } else if (pointers.size === 2 && pinch) {
+      var pts = Array.from(pointers.values());
+      var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      var mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      var nz = clamp(pinch.zoom * (dist / pinch.dist), 0.02, 40);
+      var s0 = S.base * pinch.zoom;
+      var s1 = S.base * nz;
+      var ax = (pinch.mid.x - pinch.center.x) / s0;
+      var ay = (pinch.mid.y - pinch.center.y) / s0;
+      S.zoom = nz;
+      S.x = (mid.x - ax * s1) - window.innerWidth / 2;
+      S.y = (mid.y - ay * s1) - window.innerHeight / 2;
+      apply();
+    }
+  }, { passive: true });
+
+  function endPointer(e) {
+    var wasSingle = pointers.size === 1;
+    pointers.delete(e.pointerId);
+
+    if (wasSingle && drag && drag.moved < 12) {
+      var now = Date.now();
+      var isDouble = (now - lastTapTime) < 320 &&
+        Math.abs(e.clientX - lastTapX) < 48 && Math.abs(e.clientY - lastTapY) < 48;
+      if (isDouble) {
+        lastTapTime = 0;
+        if (S.zoom > 1.6) { window.SVGViewer.fit(); }
+        else { zoomAt(3, e.clientX, e.clientY); }
+      } else {
+        lastTapTime = now;
+        lastTapX = e.clientX;
+        lastTapY = e.clientY;
+      }
+    }
+
+    if (pointers.size < 2) pinch = null;
+    if (pointers.size === 1) {
+      var only = Array.from(pointers.values())[0];
+      drag = { px: only.x, py: only.y, ox: S.x, oy: S.y, moved: 99 };
+    } else if (pointers.size === 0) {
+      drag = null;
+    }
+  }
+
+  el.addEventListener("pointerup", endPointer, { passive: true });
+  el.addEventListener("pointercancel", endPointer, { passive: true });
+
+  el.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var factor = Math.pow(1.0018, -e.deltaY);
+    zoomAt(S.zoom * factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  window.addEventListener("resize", function () {
+    layout();
+  });
+
+  /* ---------------- animation control ---------------- */
+  function setPaused(p) {
+    var svg = svgEl();
+    S.paused = p;
+    if (svg && typeof svg.pauseAnimations === "function") {
+      if (p) { try { svg.pauseAnimations(); } catch (err) {} }
+      else { try { svg.unpauseAnimations(); } catch (err) {} }
+    }
+    if (!pauseStyle) {
+      pauseStyle = document.createElement("style");
+      document.head.appendChild(pauseStyle);
+    }
+    pauseStyle.textContent = p
+      ? "*{animation-play-state:paused !important;}"
+      : "";
+  }
+
+  function restart() {
+    var svg = svgEl();
+    if (!svg) return;
+    if (typeof svg.setCurrentTime === "function") {
+      try { svg.setCurrentTime(0); } catch (err) {}
+    }
+    // restart CSS animations by re-inserting a clone
+    var clone = svg.cloneNode(true);
+    svg.parentNode.replaceChild(clone, svg);
+    clone.style.width = "100%";
+    clone.style.height = "100%";
+    clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    setPaused(false);
+  }
+
+  /* ---------------- export ---------------- */
+  var exporting = false;
+
+  function utf8Base64(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = "";
+    var CHUNK = 0x8000;
+    for (var i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+  }
+
+  function exportPng(longEdge, transparent) {
+    if (exporting) { return; }
+    exporting = true;
+
+    var svg = svgEl();
+    if (!svg) {
+      exporting = false;
+      bridge("exportError", ["Không tìm thấy nội dung SVG."]);
+      return;
+    }
+
+    var ar = S.w / S.h;
+    var w, h;
+    if (S.w >= S.h) { w = longEdge; h = Math.round(longEdge / ar); }
+    else { h = longEdge; w = Math.round(longEdge * ar); }
+
+    var clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    clone.setAttribute("width", String(w));
+    clone.setAttribute("height", String(h));
+    clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    if (!clone.getAttribute("viewBox")) {
+      clone.setAttribute("viewBox", "0 0 " + S.w + " " + S.h);
+    }
+    clone.style.width = w + "px";
+    clone.style.height = h + "px";
+    clone.style.removeProperty("overflow");
+
+    var xml = new XMLSerializer().serializeToString(clone);
+    var url = "data:image/svg+xml;base64," + utf8Base64(xml);
+    var img = new Image();
+
+    function fail(msg) {
+      exporting = false;
+      bridge("exportError", [msg]);
+    }
+
+    img.onload = function () {
+      try {
+        bridge("progress", [40]);
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        if (!transparent) {
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, w, h);
+        bridge("progress", [70]);
+        var dataUrl = canvas.toDataURL("image/png");
+        var b64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
+        var CHUNK = 600000;
+        for (var i = 0; i < b64.length; i += CHUNK) {
+          bridge("chunk", [b64.substr(i, CHUNK)]);
+        }
+        canvas.width = 0;
+        canvas.height = 0;
+        bridge("progress", [100]);
+        exporting = false;
+        bridge("exportDone", [w, h]);
+      } catch (err) {
+        fail("Không thể kết xuất PNG: " + err.message);
+      }
+    };
+
+    img.onerror = function () {
+      fail("Không thể dựng lại SVG để xuất ảnh.");
+    };
+
+    bridge("progress", [15]);
+    img.src = url;
+  }
+
+  /* ---------------- public API ---------------- */
+  window.SVGViewer = {
+    fit: function () { S.zoom = 1; S.x = 0; S.y = 0; apply(); },
+    setZoom: function (z) { S.zoom = clamp(z, 0.02, 40); apply(); },
+    zoomBy: function (factor) {
+      zoomAt(S.zoom * factor, window.innerWidth / 2, window.innerHeight / 2);
+    },
+    actualSize: function () {
+      if (S.base <= 0) return;
+      S.zoom = clamp(1 / S.base, 0.02, 40);
+      S.x = 0; S.y = 0;
+      apply();
+    },
+    togglePlay: function () { setPaused(!S.paused); return S.paused; },
+    setPaused: setPaused,
+    isPaused: function () { return S.paused; },
+    restart: restart,
+    exportPng: exportPng,
+    getState: function () { return { zoom: S.zoom, w: S.w, h: S.h, base: S.base }; }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

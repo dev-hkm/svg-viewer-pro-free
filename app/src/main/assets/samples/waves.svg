@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B1020"/>
+      <stop offset="100%" stop-color="#1A1030"/>
+    </linearGradient>
+    <linearGradient id="w1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7DF9E4"/>
+      <stop offset="100%" stop-color="#6C63FF"/>
+    </linearGradient>
+    <linearGradient id="w2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FF9EC4"/>
+      <stop offset="100%" stop-color="#FFD166"/>
+    </linearGradient>
+    <linearGradient id="w3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#B9B4FF"/>
+      <stop offset="100%" stop-color="#7DF9E4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <g fill="none" stroke-linecap="round">
+    <path stroke="url(#w1)" stroke-width="6" opacity="0.95"
+          d="M-20,180 C60,110 140,250 220,180 C300,110 380,250 460,180 C500,145 520,150 540,160">
+      <animate attributeName="d" dur="6s" repeatCount="indefinite"
+        values="M-20,180 C60,110 140,250 220,180 C300,110 380,250 460,180 C500,145 520,150 540,160;
+                M-20,180 C60,250 140,110 220,180 C300,250 380,110 460,180 C500,215 520,210 540,200;
+                M-20,180 C60,110 140,250 220,180 C300,110 380,250 460,180 C500,145 520,150 540,160"/>
+    </path>
+
+    <path stroke="url(#w2)" stroke-width="5" opacity="0.85"
+          d="M-20,256 C60,186 140,326 220,256 C300,186 380,326 460,256 C500,221 520,226 540,236">
+      <animate attributeName="d" dur="7.5s" repeatCount="indefinite"
+        values="M-20,256 C60,186 140,326 220,256 C300,186 380,326 460,256 C500,221 520,226 540,236;
+                M-20,256 C60,326 140,186 220,256 C300,326 380,186 460,256 C500,291 520,286 540,276;
+                M-20,256 C60,186 140,326 220,256 C300,186 380,326 460,256 C500,221 520,226 540,236"/>
+    </path>
+
+    <path stroke="url(#w3)" stroke-width="4" opacity="0.7"
+          d="M-20,332 C60,262 140,402 220,332 C300,262 380,402 460,332 C500,297 520,302 540,312">
+      <animate attributeName="d" dur="9s" repeatCount="indefinite"
+        values="M-20,332 C60,262 140,402 220,332 C300,262 380,402 460,332 C500,297 520,302 540,312;
+                M-20,332 C60,402 140,262 220,332 C300,402 380,262 460,332 C500,367 520,362 540,352;
+                M-20,332 C60,262 140,402 220,332 C300,262 380,402 460,332 C500,297 520,302 540,312"/>
+    </path>
+  </g>
+
+  <g fill="#FFFFFF">
+    <circle cx="256" cy="256" r="4" opacity="0.9">
+      <animate attributeName="cy" values="256;180;256" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="200" r="2.5" opacity="0.7">
+      <animate attributeName="cy" values="200;300;200" dur="7.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="380" cy="300" r="2.5" opacity="0.7">
+      <animate attributeName="cy" values="300;200;300" dur="9s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

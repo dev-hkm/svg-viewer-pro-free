@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DF9E4"/>
+      <stop offset="100%" stop-color="#6C63FF"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF9EC4"/>
+      <stop offset="100%" stop-color="#FFD166"/>
+    </linearGradient>
+    <linearGradient id="g3" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#B9B4FF"/>
+      <stop offset="100%" stop-color="#7DF9E4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#0E0B1C"/>
+
+  <g fill="none" stroke-linecap="round" transform="translate(256 256)">
+    <circle r="150" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2"/>
+
+    <path d="M0,-150 A150,150 0 0,1 129.9,-75" stroke="url(#g1)" stroke-width="14">
+      <animateTransform attributeName="transform" type="rotate" values="0;360" dur="3.2s" repeatCount="indefinite"/>
+    </path>
+
+    <path d="M0,-108 A108,108 0 0,1 93.5,-54" stroke="url(#g2)" stroke-width="12">
+      <animateTransform attributeName="transform" type="rotate" values="360;0" dur="2.4s" repeatCount="indefinite"/>
+    </path>
+
+    <path d="M0,-66 A66,66 0 0,1 57.2,-33" stroke="url(#g3)" stroke-width="10">
+      <animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.6s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <circle cx="256" cy="256" r="10" fill="#FFFFFF">
+    <animate attributeName="r" values="8;14;8" dur="1.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.6;1" dur="1.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="256" y="452" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.55"
+        font-family="monospace" font-size="18" letter-spacing="6">LOADING</text>
+</svg>
