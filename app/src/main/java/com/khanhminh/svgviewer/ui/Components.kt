@@ -278,7 +278,7 @@ fun SecondaryAction(
     }
 }
 
-/** Nút icon tròn, vùng chạm luôn 48dp. */
+/** Nút icon tròn, vùng chạm luôn 48dp (hoặc [size] khi dock cần thu gọn). */
 @Composable
 fun IconAction(
     icon: ImageVector,
@@ -287,14 +287,16 @@ fun IconAction(
     modifier: Modifier = Modifier,
     tint: Color? = null,
     filled: Boolean = false,
-    animated: Boolean = false
+    animated: Boolean = false,
+    size: Dp = 48.dp,
+    iconSize: Dp = 21.dp
 ) {
     val scheme = MaterialTheme.colorScheme
     val haptics = com.khanhminh.svgviewer.ui.haptics.LocalHaptics.current
     val iconTint = tint ?: if (filled) scheme.background else scheme.onSurface
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(size)
             .clip(CircleShape)
             .then(if (filled) Modifier.background(scheme.onBackground) else Modifier)
             .tap {
@@ -308,14 +310,14 @@ fun IconAction(
                 icon = icon,
                 contentDescription = contentDescription,
                 tint = iconTint,
-                size = 21.dp
+                size = iconSize
             )
         } else {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 tint = iconTint,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(iconSize)
             )
         }
     }

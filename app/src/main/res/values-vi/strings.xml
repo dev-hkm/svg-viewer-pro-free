@@ -26,6 +26,9 @@
     <string name="home_cd_theme_dark">Chuyển sang giao diện tối</string>
     <string name="home_cd_settings">Cài đặt</string>
     <string name="home_cd_remove_recent">Xoá %1$s khỏi danh sách</string>
+    <string name="home_cd_pin_recent">Ghim %1$s</string>
+    <string name="home_cd_unpin_recent">Bỏ ghim %1$s</string>
+    <string name="home_recent_pinned">Đã ghim</string>
 
     <!-- relative time -->
     <string name="time_now">Vừa xong</string>
@@ -44,7 +47,13 @@
     <string name="viewer_cd_pause">Tạm dừng chuyển động</string>
     <string name="viewer_cd_replay">Chạy lại từ đầu</string>
     <string name="viewer_cd_canvas">Đổi nền canvas</string>
+    <string name="viewer_cd_speed">Tốc độ phát</string>
     <string name="viewer_loading">Đang nạp SVG…</string>
+
+    <!-- playback -->
+    <string name="speed_title">Tốc độ phát</string>
+    <string name="speed_subtitle">Giảm tốc để soi kỹ từng khung hình, hoặc tăng tốc để xem trọn vòng lặp.</string>
+    <string name="speed_current">Đang dùng</string>
 
     <!-- export -->
     <string name="export_title">Xuất ảnh PNG</string>
@@ -57,6 +66,9 @@
     <string name="export_bg_transparent">Trong suốt</string>
     <string name="export_bg_custom">Màu tuỳ chọn</string>
     <string name="export_bg_pick">Chọn</string>
+    <string name="export_padding">Lề quanh hình</string>
+    <string name="export_padding_none">Không</string>
+    <string name="export_padding_value">%1$d%%</string>
     <string name="export_action">Xuất PNG</string>
     <string name="export_action_size">Xuất %1$d × %2$d</string>
     <string name="export_saved_hint">Lưu vào Thư viện ảnh › Pictures/SVG Viewer</string>
@@ -82,6 +94,8 @@
     <string name="info_source_file">Tệp trên máy</string>
     <string name="info_source_sample">Mẫu có sẵn</string>
     <string name="info_source_clipboard">Mã đã dán</string>
+    <string name="info_copy_code">Sao chép mã SVG</string>
+    <string name="info_code_copied">Đã sao chép mã SVG</string>
 
     <!-- settings -->
     <string name="settings_title">Cài đặt</string>

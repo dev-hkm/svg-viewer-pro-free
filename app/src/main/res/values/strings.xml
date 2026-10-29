@@ -26,6 +26,9 @@
     <string name="home_cd_theme_dark">Switch to dark theme</string>
     <string name="home_cd_settings">Settings</string>
     <string name="home_cd_remove_recent">Remove %1$s from recents</string>
+    <string name="home_cd_pin_recent">Pin %1$s</string>
+    <string name="home_cd_unpin_recent">Unpin %1$s</string>
+    <string name="home_recent_pinned">Pinned</string>
 
     <!-- relative time -->
     <string name="time_now">Just now</string>
@@ -44,7 +47,13 @@
     <string name="viewer_cd_pause">Pause animation</string>
     <string name="viewer_cd_replay">Restart animation</string>
     <string name="viewer_cd_canvas">Canvas background</string>
+    <string name="viewer_cd_speed">Playback speed</string>
     <string name="viewer_loading">Loading SVG…</string>
+
+    <!-- playback -->
+    <string name="speed_title">Playback speed</string>
+    <string name="speed_subtitle">Slow the motion down to study a frame, or speed it up to check the whole loop.</string>
+    <string name="speed_current">Current speed</string>
 
     <!-- export -->
     <string name="export_title">Export PNG</string>
@@ -57,6 +66,9 @@
     <string name="export_bg_transparent">Transparent</string>
     <string name="export_bg_custom">Custom colour</string>
     <string name="export_bg_pick">Pick</string>
+    <string name="export_padding">Margin around artwork</string>
+    <string name="export_padding_none">None</string>
+    <string name="export_padding_value">%1$d%%</string>
     <string name="export_action">Export PNG</string>
     <string name="export_action_size">Export %1$d × %2$d</string>
     <string name="export_saved_hint">Saved to Gallery › Pictures/SVG Viewer</string>
@@ -82,6 +94,8 @@
     <string name="info_source_file">Local file</string>
     <string name="info_source_sample">Built-in sample</string>
     <string name="info_source_clipboard">Pasted code</string>
+    <string name="info_copy_code">Copy SVG code</string>
+    <string name="info_code_copied">SVG code copied to clipboard</string>
 
     <!-- settings -->
     <string name="settings_title">Settings</string>

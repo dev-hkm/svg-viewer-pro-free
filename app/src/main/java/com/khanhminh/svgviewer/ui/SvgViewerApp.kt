@@ -250,6 +250,10 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                 },
                                 onOpenSample = { openSample(it) },
                                 onOpenRecent = { openRecent(it) },
+                                onTogglePin = { file ->
+                                    recentStore.setPinned(file.uri, !file.pinned)
+                                    refreshRecents()
+                                },
                                 onRemoveRecent = {
                                     recentStore.remove(it.uri)
                                     refreshRecents()
@@ -271,6 +275,14 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                             ViewerScreen(
                                 document = current,
                                 settings = store,
+                                onThumbnail = { uri, bytes ->
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            recentStore.writeThumb(uri, bytes)
+                                        }
+                                        refreshRecents()
+                                    }
+                                },
                                 onBack = { document = null }
                             )
                         }

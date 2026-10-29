@@ -46,6 +46,9 @@ object AppIcons {
     val Lock: ImageVector get() = LightGroup.LockSimple
     val LockOpen: ImageVector get() = LightGroup.LockSimpleOpen
     val Ruler: ImageVector get() = LightGroup.Ruler
+    val Speed: ImageVector get() = LightGroup.Gauge
+    val Pin: ImageVector get() = LightGroup.PushPin
+    val Copy: ImageVector get() = LightGroup.Copy
 
     val Sparkle: ImageVector get() = LightGroup.Sparkle
     val Wave: ImageVector get() = LightGroup.Waveform

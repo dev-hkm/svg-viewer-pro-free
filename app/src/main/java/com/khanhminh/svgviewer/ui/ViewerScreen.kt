@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.util.Base64
 import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -32,10 +33,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,8 +70,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -112,11 +119,13 @@ private const val MAX_PIXELS = 40_000_000L
 fun ViewerScreen(
     document: SvgDocument,
     settings: SettingsStore,
+    onThumbnail: (Uri, ByteArray) -> Unit = { _, _ -> },
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val clipboard = LocalClipboardManager.current
     val bridge = remember { SvgBridge() }
     val holder = remember { WebViewHolder() }
     val haptics = LocalHaptics.current
@@ -124,6 +133,12 @@ fun ViewerScreen(
     val html = remember(document.markup) { HtmlComposer.compose(context, document.markup) }
     val canvasSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val speedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Dock có 8 phần tử: máy hẹp thì thu nhỏ từng nút để không bị cắt mép.
+    val compactDock = LocalConfiguration.current.screenWidthDp < 380
+    val dockButton = if (compactDock) 42.dp else 48.dp
+    val dockIcon = if (compactDock) 19.dp else 21.dp
 
     val aspect = document.aspect?.takeIf { it > 0f } ?: 1f
 
@@ -133,6 +148,7 @@ fun ViewerScreen(
     var showInfo by remember { mutableStateOf(false) }
     var showCanvasSheet by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
+    var showSpeedSheet by remember { mutableStateOf(false) }
     var exportUi by remember { mutableStateOf(ExportUi()) }
     var backProgress by remember { mutableFloatStateOf(0f) }
     val activeSession = remember { mutableStateOf<ExportSession?>(null) }
@@ -141,13 +157,14 @@ fun ViewerScreen(
     var exportW by remember(document.markup) { mutableIntStateOf(defaultSize.first) }
     var exportH by remember(document.markup) { mutableIntStateOf(defaultSize.second) }
     var exportBg by remember { mutableStateOf<Color?>(null) }
+    var exportPad by remember { mutableIntStateOf(0) }
     var lockAspect by remember { mutableStateOf(true) }
 
     fun js(code: String) {
         holder.webView?.evaluateJavascript(code, null)
     }
 
-    fun performExport(width: Int, height: Int, background: Color?) {
+    fun performExport(width: Int, height: Int, background: Color?, paddingPercent: Int) {
         val view = holder.webView ?: return
         activeSession.value?.discard()
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
@@ -205,8 +222,9 @@ fun ViewerScreen(
         }
 
         val bgArg = background?.let { "\"${toHex(it)}\"" } ?: "null"
+        val padArg = (paddingPercent.coerceIn(0, 45) / 100f).toString()
         view.evaluateJavascript(
-            "window.SVGViewer && window.SVGViewer.exportPng($width, $height, $bgArg);",
+            "window.SVGViewer && window.SVGViewer.exportPng($width, $height, $bgArg, $padArg);",
             null
         )
     }
@@ -215,7 +233,7 @@ fun ViewerScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            performExport(exportW, exportH, exportBg)
+            performExport(exportW, exportH, exportBg, exportPad)
         } else {
             scope.launch {
                 snackbar.showSnackbar(context.getString(R.string.export_permission))
@@ -230,7 +248,7 @@ fun ViewerScreen(
         if (needsPermission) {
             permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         } else {
-            performExport(exportW, exportH, exportBg)
+            performExport(exportW, exportH, exportBg, exportPad)
         }
     }
 
@@ -249,11 +267,33 @@ fun ViewerScreen(
             scope.launch { snackbar.showSnackbar(message) }
         }
         bridge.onReload = { reloadDocument() }
+        // Ảnh thu nhỏ: chỉ chụp một lần cho tệp thật, sau khi SVG đã dựng xong
+        // và ổn định vài nhịp để cảnh do JS dựng kịp hiện ra.
+        bridge.onReady = { _, _ ->
+            val uri = document.uri
+            if (uri != null && document.origin == SvgDocument.Origin.FILE) {
+                holder.webView?.postDelayed({
+                    holder.webView?.evaluateJavascript(
+                        "window.SVGViewer && window.SVGViewer.snapshot(320);",
+                        null
+                    )
+                }, 700L)
+            }
+        }
+        bridge.onThumbnail = { base64, _, _ ->
+            val uri = document.uri
+            if (uri != null && base64.isNotBlank()) {
+                val bytes = runCatching { Base64.decode(base64, Base64.DEFAULT) }.getOrNull()
+                if (bytes != null && bytes.isNotEmpty()) onThumbnail(uri, bytes)
+            }
+        }
         onDispose {
             bridge.onZoom = null
             bridge.onProgress = null
             bridge.onError = null
             bridge.onReload = null
+            bridge.onReady = null
+            bridge.onThumbnail = null
             bridge.chunkSink = null
             bridge.onExportDone = null
             bridge.onExportError = null
@@ -317,7 +357,11 @@ fun ViewerScreen(
                 web.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
                         super.onPageFinished(view, url)
-                        view.evaluateJavascript("window.SVGViewer && window.SVGViewer.fit();", null)
+                        view.evaluateJavascript(
+                            "window.SVGViewer && (window.SVGViewer.fit()," +
+                                " window.SVGViewer.setSpeed(${settings.playbackSpeed}));",
+                            null
+                        )
                     }
 
                     // Chặn mọi điều hướng: SVG chỉ được vẽ, không được dắt app đi đâu.
@@ -432,17 +476,21 @@ fun ViewerScreen(
                 icon = AppIcons.Fit,
                 contentDescription = stringResource(R.string.viewer_cd_fit),
                 onClick = { js("window.SVGViewer.fit()") },
-                tint = scheme.onSurfaceVariant
+                tint = scheme.onSurfaceVariant,
+                size = dockButton,
+                iconSize = dockIcon
             )
             IconAction(
                 icon = AppIcons.ZoomOut,
                 contentDescription = stringResource(R.string.viewer_cd_zoom_out),
                 onClick = { js("window.SVGViewer.zoomBy(0.8)") },
-                tint = scheme.onSurfaceVariant
+                tint = scheme.onSurfaceVariant,
+                size = dockButton,
+                iconSize = dockIcon
             )
             Box(
                 modifier = Modifier
-                    .width(56.dp)
+                    .width(if (compactDock) 50.dp else 56.dp)
                     .height(48.dp)
                     .tap(role = null) {
                         haptics.tick()
@@ -461,13 +509,24 @@ fun ViewerScreen(
                 icon = AppIcons.ZoomIn,
                 contentDescription = stringResource(R.string.viewer_cd_zoom_in),
                 onClick = { js("window.SVGViewer.zoomBy(1.25)") },
-                tint = scheme.onSurfaceVariant
+                tint = scheme.onSurfaceVariant,
+                size = dockButton,
+                iconSize = dockIcon
             )
             Box(
                 Modifier
                     .height(22.dp)
                     .width(1.dp)
                     .background(scheme.outlineVariant)
+            )
+            // Tốc độ phát: hiện ngay con số đang dùng, chạm để mở bảng chọn.
+            SpeedBadge(
+                speed = settings.playbackSpeed,
+                compact = compactDock,
+                onClick = {
+                    haptics.click()
+                    showSpeedSheet = true
+                }
             )
             IconAction(
                 icon = if (paused) AppIcons.Play else AppIcons.Pause,
@@ -478,13 +537,17 @@ fun ViewerScreen(
                     paused = !paused
                     js("window.SVGViewer.setPaused($paused)")
                 },
-                animated = true
+                animated = true,
+                size = dockButton,
+                iconSize = dockIcon
             )
             IconAction(
                 icon = AppIcons.Replay,
                 contentDescription = stringResource(R.string.viewer_cd_replay),
                 onClick = { reloadDocument() },
-                tint = scheme.onSurfaceVariant
+                tint = scheme.onSurfaceVariant,
+                size = dockButton,
+                iconSize = dockIcon
             )
         }
 
@@ -514,6 +577,23 @@ fun ViewerScreen(
         }
     }
 
+    if (showSpeedSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSpeedSheet = false },
+            sheetState = speedSheetState,
+            containerColor = scheme.surface
+        ) {
+            SpeedSheet(
+                current = settings.playbackSpeed,
+                onPick = { speed ->
+                    haptics.selection()
+                    settings.updatePlaybackSpeed(speed)
+                    js("window.SVGViewer && window.SVGViewer.setSpeed($speed)")
+                }
+            )
+        }
+    }
+
     if (showExportSheet) {
         ModalBottomSheet(
             onDismissRequest = { showExportSheet = false },
@@ -526,6 +606,8 @@ fun ViewerScreen(
                 height = exportH,
                 background = exportBg,
                 lockAspect = lockAspect,
+                paddingPercent = exportPad,
+                onPadding = { exportPad = it },
                 onWidth = { value ->
                     exportW = value
                     if (lockAspect) exportH = (value / aspect).roundToInt().coerceIn(MIN_SIDE, MAX_SIDE)
@@ -569,7 +651,18 @@ fun ViewerScreen(
     }
 
     if (showInfo) {
-        InfoDialog(document = document, onDismiss = { showInfo = false })
+        InfoDialog(
+            document = document,
+            onCopy = {
+                clipboard.setText(AnnotatedString(document.markup))
+                haptics.success()
+                showInfo = false
+                scope.launch {
+                    snackbar.showSnackbar(context.getString(R.string.info_code_copied))
+                }
+            },
+            onDismiss = { showInfo = false }
+        )
     }
 
     if (exportUi.running) {
@@ -624,6 +717,91 @@ private fun CanvasLayer(bg: CanvasBackground) {
     }
 }
 
+/** Các mốc tốc độ dùng chung cho dock và bảng chọn. */
+private val SPEED_STEPS = listOf(0.25f, 0.5f, 1f, 2f, 4f)
+
+private fun speedLabel(value: Float): String {
+    val number = if (value == value.toInt().toFloat()) value.toInt().toString()
+    else value.toString().removeSuffix("0").removeSuffix(".")
+    return "$number×"
+}
+
+/**
+ * Huy hiệu tốc độ trong dock: đảo màu khi khác 1× để mắt nhận ra ngay
+ * là animation đang chạy không đúng nhịp gốc.
+ */
+@Composable
+private fun SpeedBadge(speed: Float, compact: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val active = speed != 1f
+    val shape = RoundedCornerShape(9.dp)
+    Box(
+        modifier = Modifier
+            .size(if (compact) 42.dp else 48.dp)
+            .tap(role = null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .height(28.dp)
+                .widthIn(min = if (compact) 34.dp else 38.dp)
+                .clip(shape)
+                .then(
+                    if (active) Modifier.background(scheme.onBackground)
+                    else Modifier.border(1.dp, scheme.outline, shape)
+                )
+                .padding(horizontal = 5.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = speedLabel(speed),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) scheme.background else scheme.onSurface,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeedSheet(current: Float, onPick: (Float) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+    ) {
+        Text(
+            text = stringResource(R.string.speed_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.speed_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(20.dp))
+        SectionLabel(stringResource(R.string.speed_current))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SPEED_STEPS.forEach { step ->
+                ChoicePill(
+                    text = speedLabel(step),
+                    selected = current == step,
+                    onClick = { onPick(step) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+    }
+}
+
 @Composable
 private fun ExportSheet(
     document: SvgDocument,
@@ -631,11 +809,13 @@ private fun ExportSheet(
     height: Int,
     background: Color?,
     lockAspect: Boolean,
+    paddingPercent: Int,
     onWidth: (Int) -> Unit,
     onHeight: (Int) -> Unit,
     onPreset: (Int) -> Unit,
     onLockChange: (Boolean) -> Unit,
     onBackground: (Color?) -> Unit,
+    onPadding: (Int) -> Unit,
     onPickColor: () -> Unit,
     onExport: () -> Unit
 ) {
@@ -645,7 +825,11 @@ private fun ExportSheet(
         height in MIN_SIDE..MAX_SIDE &&
         width.toLong() * height.toLong() <= MAX_PIXELS
 
-    Column(Modifier.padding(horizontal = 20.dp)) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+    ) {
         Text(
             text = stringResource(R.string.export_title),
             style = MaterialTheme.typography.titleLarge,
@@ -821,6 +1005,22 @@ private fun ExportSheet(
             }
         }
 
+        Spacer(Modifier.height(18.dp))
+        SectionLabel(stringResource(R.string.export_padding))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0, 4, 8, 12).forEach { percent ->
+                ChoicePill(
+                    text = if (percent == 0) stringResource(R.string.export_padding_none)
+                    else stringResource(R.string.export_padding_value, percent),
+                    selected = paddingPercent == percent,
+                    onClick = { onPadding(percent) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         Spacer(Modifier.height(20.dp))
 
         PrimaryAction(
@@ -949,12 +1149,24 @@ private fun NumberField(
 }
 
 @Composable
-private fun InfoDialog(document: SvgDocument, onDismiss: () -> Unit) {
+private fun InfoDialog(document: SvgDocument, onCopy: () -> Unit, onDismiss: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCopy) {
+                Icon(
+                    imageVector = AppIcons.Copy,
+                    contentDescription = null,
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.info_copy_code))
+            }
         },
         title = {
             Text(

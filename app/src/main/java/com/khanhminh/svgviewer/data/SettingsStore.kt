@@ -32,6 +32,16 @@ class SettingsStore(context: Context) {
     var hapticsEnabled by mutableStateOf(prefs.getBoolean(KEY_HAPTICS, true))
         private set
 
+    /** Hệ số tốc độ phát animation của SVG (1.0 = bình thường). */
+    var playbackSpeed by mutableStateOf(prefs.getFloat(KEY_SPEED, 1f).takeIf { it > 0f } ?: 1f)
+        private set
+
+    fun updatePlaybackSpeed(speed: Float) {
+        val safe = speed.coerceIn(0.25f, 4f)
+        playbackSpeed = safe
+        prefs.edit().putFloat(KEY_SPEED, safe).apply()
+    }
+
     fun updateThemeMode(mode: ThemeMode) {
         themeMode = mode
         prefs.edit().putInt(KEY_THEME, mode.ordinal).apply()
@@ -52,6 +62,7 @@ class SettingsStore(context: Context) {
         const val KEY_BG = "canvas_background_name"
         const val KEY_BG_LEGACY = "canvas_background"
         const val KEY_HAPTICS = "haptics_enabled"
+        const val KEY_SPEED = "playback_speed"
 
         fun loadBackground(prefs: android.content.SharedPreferences): CanvasBackground =
             CanvasBackground.fromName(prefs.getString(KEY_BG, null))

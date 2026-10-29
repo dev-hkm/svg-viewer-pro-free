@@ -35,13 +35,24 @@
   (function () {
     var raf = window.requestAnimationFrame.bind(window);
     var held = [];
+    var lastReal = 0;
+    var virtual = 0;
     window.__svgPaused = false;
+    window.__svgSpeed = 1;
+
+    // Đồng hồ ảo: nhân quãng thời gian thật với tốc độ người dùng chọn, nên
+    // cảnh nào tính chuyển động theo timestamp của rAF cũng chậm/nhanh đúng.
     window.requestAnimationFrame = function (cb) {
       return raf(function (t) {
-        if (window.__svgPaused) { held.push(cb); } else { cb(t); }
+        if (window.__svgPaused) { lastReal = t; held.push(cb); return; }
+        var dt = lastReal ? Math.min(100, t - lastReal) : 16.7;
+        lastReal = t;
+        virtual += dt * (window.__svgSpeed || 1);
+        cb(virtual);
       });
     };
     window.__flushRaf = function () {
+      lastReal = 0;
       var queue = held;
       held = [];
       for (var i = 0; i < queue.length; i++) { window.requestAnimationFrame(queue[i]); }
@@ -302,8 +313,9 @@
    * @param {number} outW chiều rộng ảnh (px)
    * @param {number} outH chiều cao ảnh (px)
    * @param {string|null} bg màu nền "#RRGGBB"; null = trong suốt
+   * @param {number} [padding] tỉ lệ lề mỗi cạnh (0..0.45)
    */
-  function exportPng(outW, outH, bg) {
+  function exportPng(outW, outH, bg, padding) {
     if (exporting) { return; }
     exporting = true;
 
@@ -352,7 +364,10 @@
         }
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, w, h);
+        var pad = Math.max(0, Math.min(0.45, padding || 0));
+        var padX = w * pad;
+        var padY = h * pad;
+        ctx.drawImage(img, padX, padY, Math.max(1, w - padX * 2), Math.max(1, h - padY * 2));
         bridge("progress", [70]);
         var dataUrl = canvas.toDataURL("image/png");
         var b64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
@@ -378,6 +393,64 @@
     img.src = url;
   }
 
+  /* ---------------- ảnh thu nhỏ & tốc độ ---------------- */
+
+  /**
+   * Dựng ảnh thu nhỏ của bản vẽ hiện tại rồi gửi về Kotlin qua bridge.
+   * Dùng lại đúng cách export (data URL) để không bị "taint" canvas.
+   */
+  function snapshot(size) {
+    var svg = svgEl();
+    if (!svg) { bridge("thumbnail", ["", 0, 0]); return; }
+    var w = S.w || 1;
+    var h = S.h || 1;
+    var scale = Math.min(size / w, size / h);
+    var outW = Math.max(1, Math.round(w * scale));
+    var outH = Math.max(1, Math.round(h * scale));
+
+    var clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    clone.setAttribute("width", String(outW));
+    clone.setAttribute("height", String(outH));
+    clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    if (!clone.getAttribute("viewBox")) {
+      clone.setAttribute("viewBox", "0 0 " + w + " " + h);
+    }
+    clone.style.width = outW + "px";
+    clone.style.height = outH + "px";
+
+    var xml = new XMLSerializer().serializeToString(clone);
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var canvas = document.createElement("canvas");
+        canvas.width = outW;
+        canvas.height = outH;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, outW, outH);
+        var url = canvas.toDataURL("image/png");
+        bridge("thumbnail", [url.substring(url.indexOf(",") + 1), outW, outH]);
+      } catch (err) {
+        bridge("thumbnail", ["", 0, 0]);
+      }
+    };
+    img.onerror = function () { bridge("thumbnail", ["", 0, 0]); };
+    img.src = "data:image/svg+xml;base64," + utf8Base64(xml);
+  }
+
+  /** Tốc độ phát cho cả CSS animation, SMIL và vòng lặp rAF. */
+  function setSpeed(multiplier) {
+    var m = multiplier > 0 ? multiplier : 1;
+    window.__svgSpeed = m;
+    try {
+      var list = document.getAnimations ? document.getAnimations() : [];
+      for (var i = 0; i < list.length; i++) {
+        try { list[i].playbackRate = m; } catch (err) {}
+      }
+    } catch (err) {}
+  }
+
   /* ---------------- public API ---------------- */
   window.SVGViewer = {
     fit: function () { S.zoom = 1; S.x = 0; S.y = 0; apply(); },
@@ -396,6 +469,8 @@
     isPaused: function () { return S.paused; },
     restart: restart,
     exportPng: exportPng,
+    snapshot: snapshot,
+    setSpeed: setSpeed,
     getState: function () { return { zoom: S.zoom, w: S.w, h: S.h, base: S.base }; }
   };
 

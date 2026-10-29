@@ -1,5 +1,7 @@
 package com.khanhminh.svgviewer.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,10 +27,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.stringResource
@@ -41,6 +47,8 @@ import com.khanhminh.svgviewer.data.RecentFile
 import com.khanhminh.svgviewer.data.ThemeMode
 import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
 import com.khanhminh.svgviewer.ui.theme.AppIcons
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,6 +61,7 @@ fun HomeScreen(
     onPaste: () -> Unit,
     onOpenSample: (SampleSvg) -> Unit,
     onOpenRecent: (RecentFile) -> Unit,
+    onTogglePin: (RecentFile) -> Unit,
     onRemoveRecent: (RecentFile) -> Unit,
     onClearRecents: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -198,11 +207,12 @@ fun HomeScreen(
                 Column {
                     recents.forEachIndexed { index, recent ->
                         if (index > 0) {
-                            Hairline(Modifier.padding(start = 56.dp))
+                            Hairline(Modifier.padding(start = 58.dp))
                         }
                         RecentRow(
                             recent = recent,
                             onClick = { onOpenRecent(recent) },
+                            onTogglePin = { onTogglePin(recent) },
                             onRemove = { onRemoveRecent(recent) }
                         )
                     }
@@ -319,14 +329,20 @@ private fun SampleCard(sample: SampleSvg, onClick: () -> Unit) {
 }
 
 @Composable
-private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun RecentRow(
+    recent: RecentFile,
+    onClick: () -> Unit,
+    onTogglePin: () -> Unit,
+    onRemove: () -> Unit
+) {
     val scheme = MaterialTheme.colorScheme
     val haptics = LocalHaptics.current
+    val thumb = rememberThumb(recent.thumbPath)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = 68.dp)
             .tap(role = null) {
                 haptics.click()
                 onClick()
@@ -335,33 +351,73 @@ private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> U
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(scheme.surfaceContainerHigh),
+                .background(scheme.surfaceContainerHigh)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = AppIcons.FileSvg,
-                contentDescription = null,
-                tint = scheme.onSurface,
-                modifier = Modifier.size(19.dp)
-            )
+            if (thumb != null) {
+                Image(
+                    bitmap = thumb,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = AppIcons.FileSvg,
+                    contentDescription = null,
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
         }
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (recent.pinned) {
+                    Icon(
+                        imageVector = AppIcons.Pin,
+                        contentDescription = null,
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text(
+                    text = recent.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Text(
-                text = recent.name,
-                style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = relativeTime(recent.timestamp),
+                text = if (recent.pinned) {
+                    stringResource(R.string.home_recent_pinned) + " · " +
+                        relativeTime(recent.timestamp)
+                } else relativeTime(recent.timestamp),
                 style = MaterialTheme.typography.labelSmall,
                 color = scheme.onSurfaceVariant
             )
         }
+        IconAction(
+            icon = AppIcons.Pin,
+            contentDescription = stringResource(
+                if (recent.pinned) R.string.home_cd_unpin_recent
+                else R.string.home_cd_pin_recent,
+                recent.name
+            ),
+            onClick = {
+                haptics.selection()
+                onTogglePin()
+            },
+            tint = if (recent.pinned) scheme.onSurface
+            else scheme.onSurfaceVariant.copy(alpha = 0.45f),
+            size = 44.dp,
+            iconSize = 18.dp
+        )
         IconAction(
             icon = AppIcons.Close,
             contentDescription = stringResource(R.string.home_cd_remove_recent, recent.name),
@@ -369,9 +425,28 @@ private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> U
                 haptics.warning()
                 onRemove()
             },
-            tint = scheme.onSurfaceVariant
+            tint = scheme.onSurfaceVariant,
+            size = 44.dp,
+            iconSize = 18.dp
         )
     }
+}
+
+/**
+ * Ảnh thu nhỏ chụp từ khung hình SVG. Giải mã ở luồng nền để danh sách
+ * không bị khựng khi cuộn qua nhiều tệp.
+ */
+@Composable
+private fun rememberThumb(path: String?): ImageBitmap? {
+    return produceState<ImageBitmap?>(initialValue = null, key1 = path) {
+        value = if (path == null) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
+            }
+        }
+    }.value
 }
 
 @Composable

@@ -17,6 +17,7 @@ class SvgBridge {
     var onExportDone: ((Int, Int) -> Unit)? = null
     var onExportError: ((String, String) -> Unit)? = null
     var onReload: (() -> Unit)? = null
+    var onThumbnail: ((String, Int, Int) -> Unit)? = null
     var chunkSink: ((String) -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -54,6 +55,12 @@ class SvgBridge {
     @JavascriptInterface
     fun exportError(code: String, detail: String) {
         main.post { onExportError?.invoke(code, detail) }
+    }
+
+    /** Ảnh thu nhỏ dạng base64 (rỗng nếu không dựng được) kèm kích thước thật. */
+    @JavascriptInterface
+    fun thumbnail(base64: String, width: Int, height: Int) {
+        main.post { onThumbnail?.invoke(base64, width, height) }
     }
 
     /** SVG yêu cầu chạy lại từ đầu: nạp lại tài liệu để script khởi tạo lại sạch. */
