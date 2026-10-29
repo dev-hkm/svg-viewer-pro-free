@@ -96,6 +96,21 @@ class RecentStore(context: Context) {
         commit(trim(current.map { if (it.uri == uri) it.copy(pinned = pinned) else it }))
     }
 
+    /**
+     * Đổi tên hiển thị. Khi hệ thống đổi được tên tệp thật, [newUri] là Uri mới do
+     * provider trả về; nếu provider không hỗ trợ thì chỉ đổi tên trong app.
+     * Bản sao nội dung và ảnh thu nhỏ giữ nguyên đường dẫn nên không phải ghi lại.
+     */
+    fun rename(oldUri: Uri, newUri: Uri, newName: String) {
+        val current = list()
+        if (current.none { it.uri == oldUri }) return
+        commit(
+            current.map {
+                if (it.uri == oldUri) it.copy(uri = newUri, name = newName) else it
+            }
+        )
+    }
+
     /** Đọc lại nội dung SVG đã lưu; null nếu không còn. */
     fun readCached(file: RecentFile): String? {
         val path = file.cachedPath ?: return null

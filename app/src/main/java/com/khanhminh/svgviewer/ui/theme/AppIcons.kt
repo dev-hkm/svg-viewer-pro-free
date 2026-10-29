@@ -58,6 +58,7 @@ object AppIcons {
     val Optimize: ImageVector get() = LightGroup.MagicWand
     val Invert: ImageVector get() = LightGroup.CircleHalf
     val Download: ImageVector get() = LightGroup.DownloadSimple
+    val Rename: ImageVector get() = LightGroup.PencilSimple
 
     val Sparkle: ImageVector get() = LightGroup.Sparkle
     val Wave: ImageVector get() = LightGroup.Waveform

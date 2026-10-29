@@ -2,6 +2,7 @@ package com.khanhminh.svgviewer.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -13,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,11 +58,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.khanhminh.svgviewer.BuildConfig
 import com.khanhminh.svgviewer.R
@@ -71,6 +81,7 @@ import com.khanhminh.svgviewer.data.SettingsStore
 import com.khanhminh.svgviewer.data.SvgDocument
 import com.khanhminh.svgviewer.data.SvgLoader
 import com.khanhminh.svgviewer.data.ThemeMode
+import com.khanhminh.svgviewer.render.ImageSaver
 import com.khanhminh.svgviewer.ui.haptics.AndroidHaptics
 import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
 import com.khanhminh.svgviewer.ui.theme.AppIcons
@@ -99,6 +110,7 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
     var loading by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showPaste by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<RecentFile?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var ripple by remember { mutableStateOf<RippleState?>(null) }
     var themeAnchor by remember { mutableStateOf(Offset.Zero) }
@@ -147,7 +159,9 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
             }
             loading = false
             if (doc != null) {
-                document = doc
+                // Giữ Uri của mục gần đây để ảnh thu nhỏ vẫn gắn đúng dòng,
+                // dù nội dung đọc từ bản sao trong bộ nhớ app.
+                document = doc.copy(uri = recent.uri)
             } else {
                 openUri(recent.uri)
             }
@@ -193,6 +207,51 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
         when {
             uri != null -> openUri(uri)
             text != null -> openText(text, "shared.svg")
+        }
+    }
+
+    /**
+     * Đổi tên tệp. Thử đổi tên thật qua provider trước (hộp thoại hệ thống trả về
+     * Uri mới), nếu provider không hỗ trợ thì chỉ đổi tên hiển thị trong app.
+     */
+    fun renameRecent(file: RecentFile, rawName: String) {
+        val name = rawName.trim().take(120)
+        if (name.isBlank()) return
+        scope.launch {
+            val newUri = withContext(Dispatchers.IO) {
+                runCatching {
+                    DocumentsContract.renameDocument(context.contentResolver, file.uri, name)
+                }.getOrNull() ?: file.uri
+            }
+            recentStore.rename(file.uri, newUri, name)
+            refreshRecents()
+            haptics.success()
+            snackbar.showSnackbar(context.getString(R.string.recent_renamed))
+        }
+    }
+
+    /** Lưu bản sao .svg (nội dung gốc đã chuẩn hoá) vào Download/SVG Viewer. */
+    fun saveCopy(file: RecentFile) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val markup = recentStore.readCached(file)
+                        ?: throw IllegalStateException("missing-cache")
+                    ImageSaver.saveText(
+                        context = context,
+                        text = markup,
+                        fileName = "${ImageSaver.sanitize(file.name)}.svg",
+                        mime = "image/svg+xml"
+                    )
+                }
+            }
+            result.onSuccess {
+                haptics.success()
+                snackbar.showSnackbar(context.getString(R.string.recent_save_copy_ok))
+            }.onFailure {
+                haptics.warning()
+                snackbar.showSnackbar(context.getString(R.string.recent_save_copy_failed))
+            }
         }
     }
 
@@ -254,6 +313,8 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                     recentStore.setPinned(file.uri, !file.pinned)
                                     refreshRecents()
                                 },
+                                onRename = { renaming = it },
+                                onSaveCopy = { saveCopy(it) },
                                 onRemoveRecent = {
                                     recentStore.remove(it.uri)
                                     refreshRecents()
@@ -270,6 +331,20 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                 },
                                 onThemeAnchorChange = { themeAnchor = it },
                                 onOpenSettings = { showSettings = true }
+                            )
+
+                            // Mục cũ chưa có ảnh thu nhỏ thì tự dựng bù ở chế độ nền.
+                            ThumbnailBackfill(
+                                recents = recents,
+                                readCached = { file -> recentStore.readCached(file) },
+                                onThumb = { file, bytes ->
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            recentStore.writeThumb(file.uri, bytes)
+                                        }
+                                        refreshRecents()
+                                    }
+                                }
                             )
                         } else {
                             ViewerScreen(
@@ -372,6 +447,18 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                         onClose = { showSettings = false }
                     )
                 }
+            }
+
+            val renameTarget = renaming
+            if (renameTarget != null) {
+                RenameDialog(
+                    file = renameTarget,
+                    onDismiss = { renaming = null },
+                    onConfirm = { name ->
+                        renaming = null
+                        renameRecent(renameTarget, name)
+                    }
+                )
             }
 
             val message = errorMessage
@@ -532,4 +619,81 @@ private fun languageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.SYSTEM -> stringResource(R.string.language_system)
     AppLanguage.VIETNAMESE -> stringResource(R.string.language_vi)
     AppLanguage.ENGLISH -> stringResource(R.string.language_en)
+}
+
+/** Hộp thoại đổi tên tệp trong danh sách gần đây. */
+@Composable
+private fun RenameDialog(
+    file: RecentFile,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    var text by remember(file.uri) { mutableStateOf(file.name) }
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = scheme.surface,
+        title = {
+            Text(
+                text = stringResource(R.string.recent_rename_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = scheme.onSurface
+            )
+        },
+        text = {
+            Column {
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = scheme.onSurface),
+                    cursorBrush = SolidColor(scheme.onSurface),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboard?.hide()
+                            onConfirm(text)
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(scheme.surfaceContainerHigh)
+                        .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .focusRequester(focus)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.recent_rename_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    keyboard?.hide()
+                    onConfirm(text)
+                },
+                enabled = text.isNotBlank()
+            ) {
+                Text(stringResource(R.string.action_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(150)
+        runCatching { focus.requestFocus() }
+    }
 }

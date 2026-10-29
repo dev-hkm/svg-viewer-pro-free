@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,16 +25,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -62,6 +70,8 @@ fun HomeScreen(
     onOpenSample: (SampleSvg) -> Unit,
     onOpenRecent: (RecentFile) -> Unit,
     onTogglePin: (RecentFile) -> Unit,
+    onRename: (RecentFile) -> Unit,
+    onSaveCopy: (RecentFile) -> Unit,
     onRemoveRecent: (RecentFile) -> Unit,
     onClearRecents: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -201,6 +211,15 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(6.dp))
 
+            if (recents.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.home_recents_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(2.dp))
+            }
+
             if (recents.isEmpty()) {
                 EmptyRecents()
             } else {
@@ -213,6 +232,8 @@ fun HomeScreen(
                             recent = recent,
                             onClick = { onOpenRecent(recent) },
                             onTogglePin = { onTogglePin(recent) },
+                            onRename = { onRename(recent) },
+                            onSaveCopy = { onSaveCopy(recent) },
                             onRemove = { onRemoveRecent(recent) }
                         )
                     }
@@ -333,103 +354,164 @@ private fun RecentRow(
     recent: RecentFile,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
+    onRename: () -> Unit,
+    onSaveCopy: () -> Unit,
     onRemove: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
     val haptics = LocalHaptics.current
     val thumb = rememberThumb(recent.thumbPath)
+    var menu by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 68.dp)
-            .tap(role = null) {
-                haptics.click()
-                onClick()
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    Box {
+        Row(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(scheme.surfaceContainerHigh)
-                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (thumb != null) {
-                Image(
-                    bitmap = thumb,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = AppIcons.FileSvg,
-                    contentDescription = null,
-                    tint = scheme.onSurface,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (recent.pinned) {
-                    Icon(
-                        imageVector = AppIcons.Pin,
-                        contentDescription = null,
-                        tint = scheme.onSurfaceVariant,
-                        modifier = Modifier.size(12.dp)
+                .fillMaxWidth()
+                .heightIn(min = 68.dp)
+                .pointerInput(recent.uri) {
+                    detectTapGestures(
+                        onTap = {
+                            haptics.click()
+                            onClick()
+                        },
+                        onLongPress = {
+                            haptics.impact()
+                            menu = true
+                        }
                     )
-                    Spacer(Modifier.width(5.dp))
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(scheme.surfaceContainerHigh)
+                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (thumb != null) {
+                    Image(
+                        bitmap = thumb,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = AppIcons.FileSvg,
+                        contentDescription = null,
+                        tint = scheme.onSurface,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (recent.pinned) {
+                        Icon(
+                            imageVector = AppIcons.Pin,
+                            contentDescription = null,
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(Modifier.width(5.dp))
+                    }
+                    Text(
+                        text = recent.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
                 Text(
-                    text = recent.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = if (recent.pinned) {
+                        stringResource(R.string.home_recent_pinned) + " · " +
+                            relativeTime(recent.timestamp)
+                    } else relativeTime(recent.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = if (recent.pinned) {
-                    stringResource(R.string.home_recent_pinned) + " · " +
-                        relativeTime(recent.timestamp)
-                } else relativeTime(recent.timestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = scheme.onSurfaceVariant
+            IconAction(
+                icon = AppIcons.Pin,
+                contentDescription = stringResource(
+                    if (recent.pinned) R.string.home_cd_unpin_recent
+                    else R.string.home_cd_pin_recent,
+                    recent.name
+                ),
+                onClick = {
+                    haptics.selection()
+                    onTogglePin()
+                },
+                tint = if (recent.pinned) scheme.onSurface
+                else scheme.onSurfaceVariant.copy(alpha = 0.45f),
+                size = 44.dp,
+                iconSize = 18.dp
+            )
+            IconAction(
+                icon = AppIcons.Close,
+                contentDescription = stringResource(R.string.home_cd_remove_recent, recent.name),
+                onClick = {
+                    haptics.warning()
+                    onRemove()
+                },
+                tint = scheme.onSurfaceVariant,
+                size = 44.dp,
+                iconSize = 18.dp
             )
         }
-        IconAction(
-            icon = AppIcons.Pin,
-            contentDescription = stringResource(
-                if (recent.pinned) R.string.home_cd_unpin_recent
-                else R.string.home_cd_pin_recent,
-                recent.name
-            ),
-            onClick = {
-                haptics.selection()
-                onTogglePin()
-            },
-            tint = if (recent.pinned) scheme.onSurface
-            else scheme.onSurfaceVariant.copy(alpha = 0.45f),
-            size = 44.dp,
-            iconSize = 18.dp
-        )
-        IconAction(
-            icon = AppIcons.Close,
-            contentDescription = stringResource(R.string.home_cd_remove_recent, recent.name),
-            onClick = {
+
+        // Nhấn giữ để mở: đổi tên, lưu bản .svg, xoá khỏi danh sách.
+        DropdownMenu(
+            expanded = menu,
+            onDismissRequest = { menu = false },
+            containerColor = scheme.surface
+        ) {
+            RecentMenuItem(AppIcons.Rename, stringResource(R.string.recent_rename)) {
+                menu = false
+                onRename()
+            }
+            RecentMenuItem(AppIcons.Download, stringResource(R.string.recent_save_copy)) {
+                menu = false
+                onSaveCopy()
+            }
+            RecentMenuItem(AppIcons.Trash, stringResource(R.string.recent_remove)) {
+                menu = false
                 haptics.warning()
                 onRemove()
-            },
-            tint = scheme.onSurfaceVariant,
-            size = 44.dp,
-            iconSize = 18.dp
-        )
+            }
+        }
     }
+}
+
+@Composable
+private fun RecentMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurface
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        onClick = onClick
+    )
 }
 
 /**

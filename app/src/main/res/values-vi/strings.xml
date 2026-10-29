@@ -231,4 +231,15 @@
     <string name="export_format_jpeg">JPEG</string>
     <string name="export_quality">Chất lượng · %1$d%%</string>
     <string name="export_running_batch">%1$d / %2$d</string>
+    <!-- Thao tác với tệp gần đây -->
+    <string name="action_cancel">Huỷ</string>
+    <string name="recent_rename">Đổi tên</string>
+    <string name="recent_rename_title">Đổi tên tệp</string>
+    <string name="recent_rename_hint">Đổi tên trong app, và trên máy nếu provider cho phép.</string>
+    <string name="recent_renamed">Đã đổi tên</string>
+    <string name="recent_save_copy">Lưu bản .svg</string>
+    <string name="recent_save_copy_ok">Đã lưu vào Download/SVG Viewer</string>
+    <string name="recent_save_copy_failed">Không lưu được bản sao</string>
+    <string name="recent_remove">Xoá khỏi danh sách</string>
+    <string name="home_recents_hint">Nhấn giữ một tệp để đổi tên hoặc lưu bản sao</string>
 </resources>
