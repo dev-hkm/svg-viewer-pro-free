@@ -19,3 +19,6 @@ captures/
 .icon-preview/
 
 .tmp-test/
+
+# release notes (khong commit)
+changelog-*.html
