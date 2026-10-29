@@ -1,5 +1,22 @@
 package com.khanhminh.svgviewer.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -97,12 +115,11 @@ fun AppLogo(modifier: Modifier = Modifier, size: Dp = 32.dp, tint: Color? = null
     }
 }
 
-/** Nền ca-rô cho vùng canvas trong suốt (xám trung tính, không màu). */
+/** Nền ca-rô cho vùng canvas trong suốt; [dark] dùng tông than chì thay vì xám sáng. */
 @Composable
-fun Checkerboard(modifier: Modifier = Modifier, cell: Dp = 12.dp) {
-    val scheme = MaterialTheme.colorScheme
-    val base = scheme.surfaceContainer
-    val alt = scheme.onBackground.copy(alpha = 0.05f)
+fun Checkerboard(modifier: Modifier = Modifier, cell: Dp = 12.dp, dark: Boolean = false) {
+    val base = if (dark) Color(0xFF171717) else Color(0xFFF3F3F3)
+    val alt = if (dark) Color(0xFF232323) else Color(0xFFE2E2E2)
     Canvas(modifier) {
         drawRect(base)
         val c = cell.toPx().coerceAtLeast(2f)
@@ -247,10 +264,12 @@ fun IconAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tint: Color? = null,
-    filled: Boolean = false
+    filled: Boolean = false,
+    animated: Boolean = false
 ) {
     val scheme = MaterialTheme.colorScheme
     val haptics = com.khanhminh.svgviewer.ui.haptics.LocalHaptics.current
+    val iconTint = tint ?: if (filled) scheme.background else scheme.onSurface
     Box(
         modifier = modifier
             .size(48.dp)
@@ -262,12 +281,21 @@ fun IconAction(
             },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint ?: if (filled) scheme.background else scheme.onSurface,
-            modifier = Modifier.size(21.dp)
-        )
+        if (animated) {
+            AnimatedIcon(
+                icon = icon,
+                contentDescription = contentDescription,
+                tint = iconTint,
+                size = 21.dp
+            )
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = iconTint,
+                modifier = Modifier.size(21.dp)
+            )
+        }
     }
 }
 
@@ -337,5 +365,113 @@ fun SettingRow(
         }
         Spacer(Modifier.width(12.dp))
         content()
+    }
+}
+
+/**
+ * Đổi icon có chuyển động: icon mới phóng lên kèm xoay nhẹ, icon cũ mờ đi.
+ * Dùng cho nút đổi theme và nút play/pause.
+ */
+@Composable
+fun AnimatedIcon(
+    icon: ImageVector,
+    contentDescription: String?,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 21.dp
+) {
+    val spin = remember { Animatable(0f) }
+    var first by remember { mutableStateOf(true) }
+
+    LaunchedEffect(icon) {
+        if (first) {
+            first = false
+        } else {
+            spin.snapTo(-70f)
+            spin.animateTo(0f, tween(380, easing = Motion.Easing))
+        }
+    }
+
+    AnimatedContent(
+        targetState = icon,
+        transitionSpec = {
+            (fadeIn(tween(200, easing = Motion.Easing)) +
+                scaleIn(tween(300, easing = Motion.Easing), initialScale = 0.5f)) togetherWith
+                (fadeOut(tween(130)) + scaleOut(tween(160), targetScale = 0.5f))
+        },
+        label = "icon"
+    ) { vector ->
+        Icon(
+            imageVector = vector,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = modifier
+                .size(size)
+                .graphicsLayer { rotationZ = spin.value }
+        )
+    }
+}
+
+/** Phần tử hiện lên lần lượt từ dưới lên, tạo nhịp khi mở màn. */
+@Composable
+fun EnterUp(
+    index: Int = 0,
+    stepMillis: Int = 55,
+    content: @Composable () -> Unit
+) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * stepMillis.toLong())
+        shown = true
+    }
+    AnimatedVisibility(
+        visible = shown,
+        enter = fadeIn(tween(320, easing = Motion.Easing)) +
+            slideInVertically(tween(380, easing = Motion.Easing)) { it / 6 }
+    ) {
+        content()
+    }
+}
+
+/** Trạng thái của hiệu ứng lan toả khi đổi theme. */
+data class RippleState(val origin: Offset, val key: Long = System.nanoTime())
+
+/**
+ * Vòng sáng lan toả từ vị trí vừa chạm — phản hồi trực quan cho việc đổi theme.
+ * Vẽ phía trên toàn bộ nội dung nên không phụ thuộc layout của màn hiện tại.
+ */
+@Composable
+fun RippleOverlay(state: RippleState, onFinished: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val progress = remember(state.key) { Animatable(0f) }
+    val maxRadius = with(LocalDensity.current) { 2200.dp.toPx() }
+    val ringWidth = with(LocalDensity.current) { 2.5.dp.toPx() }
+
+    LaunchedEffect(state.key) {
+        progress.animateTo(1f, tween(620, easing = Motion.Easing))
+        onFinished()
+    }
+
+    Canvas(Modifier.fillMaxSize()) {
+        val p = progress.value
+        if (p <= 0f) return@Canvas
+        val radius = maxRadius * p
+        val fade = (1f - p) * (1f - p)
+
+        // Quầng sáng lan dần
+        drawCircle(
+            color = scheme.onBackground.copy(alpha = 0.07f * fade),
+            radius = radius,
+            center = state.origin
+        )
+        // Vành sáng ở mép sóng, tạo cảm giác "lan toả" rõ ràng
+        drawCircle(
+            color = scheme.onBackground.copy(alpha = 0.22f * fade),
+            radius = radius,
+            center = state.origin,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = ringWidth * (1f - p * 0.6f)
+            )
+        )
     }
 }

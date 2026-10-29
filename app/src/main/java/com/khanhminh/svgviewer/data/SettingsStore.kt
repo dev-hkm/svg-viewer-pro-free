@@ -1,20 +1,16 @@
 package com.khanhminh.svgviewer.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.khanhminh.svgviewer.R
 
-enum class ThemeMode(val label: String) {
-    SYSTEM("Theo máy"),
-    LIGHT("Sáng"),
-    DARK("Tối")
-}
-
-enum class CanvasBackground(val label: String) {
-    CHECKER("Trong suốt"),
-    LIGHT("Sáng"),
-    DARK("Tối")
+enum class ThemeMode(@StringRes val labelRes: Int) {
+    SYSTEM(R.string.theme_system),
+    LIGHT(R.string.theme_light),
+    DARK(R.string.theme_dark)
 }
 
 /**
@@ -30,9 +26,7 @@ class SettingsStore(context: Context) {
     )
         private set
 
-    var background by mutableStateOf(
-        CanvasBackground.entries.getOrElse(prefs.getInt(KEY_BG, 0)) { CanvasBackground.CHECKER }
-    )
+    var background by mutableStateOf(loadBackground(prefs))
         private set
 
     var hapticsEnabled by mutableStateOf(prefs.getBoolean(KEY_HAPTICS, true))
@@ -45,7 +39,7 @@ class SettingsStore(context: Context) {
 
     fun updateBackground(bg: CanvasBackground) {
         background = bg
-        prefs.edit().putInt(KEY_BG, bg.ordinal).apply()
+        prefs.edit().putString(KEY_BG, bg.name).apply()
     }
 
     fun updateHaptics(enabled: Boolean) {
@@ -55,7 +49,12 @@ class SettingsStore(context: Context) {
 
     private companion object {
         const val KEY_THEME = "theme_mode"
-        const val KEY_BG = "canvas_background"
+        const val KEY_BG = "canvas_background_name"
+        const val KEY_BG_LEGACY = "canvas_background"
         const val KEY_HAPTICS = "haptics_enabled"
+
+        fun loadBackground(prefs: android.content.SharedPreferences): CanvasBackground =
+            CanvasBackground.fromName(prefs.getString(KEY_BG, null))
+                ?: CanvasBackground.fromLegacyOrdinal(prefs.getInt(KEY_BG_LEGACY, 0))
     }
 }

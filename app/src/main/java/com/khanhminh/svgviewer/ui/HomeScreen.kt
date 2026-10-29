@@ -28,9 +28,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.khanhminh.svgviewer.R
 import com.khanhminh.svgviewer.data.RecentFile
 import com.khanhminh.svgviewer.data.ThemeMode
 import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
@@ -50,6 +56,7 @@ fun HomeScreen(
     onRemoveRecent: (RecentFile) -> Unit,
     onClearRecents: () -> Unit,
     onToggleTheme: () -> Unit,
+    onThemeAnchorChange: (Offset) -> Unit,
     onOpenSettings: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -70,21 +77,33 @@ fun HomeScreen(
                 AppLogo(size = 22.dp)
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "SVG VIEWER",
+                    text = stringResource(R.string.app_name).uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
                     color = scheme.onBackground,
                     modifier = Modifier.weight(1f)
                 )
                 IconAction(
                     icon = if (themeMode == ThemeMode.DARK) AppIcons.Sun else AppIcons.Moon,
-                    contentDescription = if (themeMode == ThemeMode.DARK)
-                        "Chuyển sang giao diện sáng" else "Chuyển sang giao diện tối",
+                    contentDescription = stringResource(
+                        if (themeMode == ThemeMode.DARK) R.string.home_cd_theme_light
+                        else R.string.home_cd_theme_dark
+                    ),
                     onClick = onToggleTheme,
-                    tint = scheme.onSurfaceVariant
+                    tint = scheme.onSurfaceVariant,
+                    animated = true,
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        val topLeft = coords.positionInRoot()
+                        onThemeAnchorChange(
+                            Offset(
+                                topLeft.x + coords.size.width / 2f,
+                                topLeft.y + coords.size.height / 2f
+                            )
+                        )
+                    }
                 )
                 IconAction(
                     icon = AppIcons.Gear,
-                    contentDescription = "Cài đặt",
+                    contentDescription = stringResource(R.string.home_cd_settings),
                     onClick = onOpenSettings,
                     tint = scheme.onSurfaceVariant
                 )
@@ -92,66 +111,85 @@ fun HomeScreen(
 
             Spacer(Modifier.height(26.dp))
 
-            Text(
-                text = "Vector sống động.\nẢnh xuất tới 8K.",
-                style = MaterialTheme.typography.displaySmall,
-                color = scheme.onBackground
-            )
+            EnterUp(index = 0) {
+                Text(
+                    text = stringResource(R.string.home_title),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = scheme.onBackground
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
 
-            Text(
-                text = "Xem SMIL và CSS animation, zoom mượt, xuất PNG nền trong suốt.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant
-            )
+            EnterUp(index = 1) {
+                Text(
+                    text = stringResource(R.string.home_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant
+                )
+            }
 
             Spacer(Modifier.height(22.dp))
 
-            PrimaryAction(
-                text = "Mở tệp SVG",
-                icon = AppIcons.FolderOpen,
-                onClick = onOpenFile,
-                modifier = Modifier.fillMaxWidth()
-            )
+            EnterUp(index = 2) {
+                PrimaryAction(
+                    text = stringResource(R.string.home_open_file),
+                    icon = AppIcons.FolderOpen,
+                    onClick = onOpenFile,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
 
-            SecondaryAction(
-                text = "Dán mã SVG",
-                icon = AppIcons.Clipboard,
-                onClick = onPaste,
-                modifier = Modifier.fillMaxWidth()
-            )
+            EnterUp(index = 3) {
+                SecondaryAction(
+                    text = stringResource(R.string.home_paste_code),
+                    icon = AppIcons.Clipboard,
+                    onClick = onPaste,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(Modifier.height(26.dp))
-            Hairline()
-            SpecStrip()
-            Hairline()
+            EnterUp(index = 4) {
+                Column {
+                    Hairline()
+                    SpecStrip()
+                    Hairline()
+                }
+            }
 
             Spacer(Modifier.height(26.dp))
 
-            SectionLabel(
-                text = "Mẫu có chuyển động",
-                trailing = "${SampleSvgs.size} mẫu"
-            )
+            EnterUp(index = 5) {
+                SectionLabel(
+                    text = stringResource(R.string.home_samples),
+                    trailing = "${SampleSvgs.size}"
+                )
+            }
             Spacer(Modifier.height(12.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(end = 4.dp)
-            ) {
-                items(SampleSvgs, key = { it.id }) { sample ->
-                    SampleCard(sample = sample, onClick = { onOpenSample(sample) })
+            EnterUp(index = 6) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(end = 4.dp)
+                ) {
+                    items(SampleSvgs, key = { it.id }) { sample ->
+                        SampleCard(sample = sample, onClick = { onOpenSample(sample) })
+                    }
                 }
             }
 
             Spacer(Modifier.height(28.dp))
 
-            SectionLabel(
-                text = "Gần đây",
-                trailing = if (recents.isEmpty()) null else "${recents.size} tệp"
-            )
+            EnterUp(index = 7) {
+                SectionLabel(
+                    text = stringResource(R.string.home_recents),
+                    trailing = if (recents.isEmpty()) null
+                    else stringResource(R.string.home_recents_count, recents.size)
+                )
+            }
             Spacer(Modifier.height(6.dp))
 
             if (recents.isEmpty()) {
@@ -180,7 +218,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Xoá danh sách gần đây",
+                            text = stringResource(R.string.home_clear_recents),
                             style = MaterialTheme.typography.labelLarge,
                             color = scheme.onSurfaceVariant
                         )
@@ -201,7 +239,11 @@ fun HomeScreen(
 @Composable
 private fun SpecStrip() {
     val scheme = MaterialTheme.colorScheme
-    val items = listOf("SMIL · CSS", "1080p · 4K · 8K", "PNG alpha")
+    val items = listOf(
+        stringResource(R.string.home_spec_formats),
+        stringResource(R.string.home_spec_sizes),
+        stringResource(R.string.home_spec_alpha)
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -223,7 +265,7 @@ private fun SpecStrip() {
                 color = scheme.onSurfaceVariant,
                 maxLines = 1,
                 modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -260,14 +302,14 @@ private fun SampleCard(sample: SampleSvg, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         Text(
-            text = sample.title,
+            text = stringResource(sample.titleRes),
             style = MaterialTheme.typography.titleSmall,
             color = scheme.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = sample.subtitle,
+            text = stringResource(sample.subtitleRes),
             style = MaterialTheme.typography.labelSmall,
             color = scheme.onSurfaceVariant,
             maxLines = 1,
@@ -322,7 +364,7 @@ private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> U
         }
         IconAction(
             icon = AppIcons.Close,
-            contentDescription = "Xoá ${recent.name} khỏi danh sách",
+            contentDescription = stringResource(R.string.home_cd_remove_recent, recent.name),
             onClick = {
                 haptics.warning()
                 onRemove()
@@ -349,7 +391,7 @@ private fun EmptyRecents() {
         )
         Spacer(Modifier.width(14.dp))
         Text(
-            text = "Tệp bạn mở sẽ được ghim ở đây để mở lại nhanh.",
+            text = stringResource(R.string.home_recents_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurfaceVariant
         )
@@ -374,21 +416,21 @@ private fun TipBlock() {
         )
         Spacer(Modifier.width(12.dp))
         Text(
-            text = "Chạm 2 lần để phóng to, kéo 2 ngón để zoom, giữ 1 ngón để di chuyển. " +
-                "Chia sẻ tệp SVG từ app khác và chọn SVG Viewer để mở ngay tại đây.",
+            text = stringResource(R.string.home_tip),
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant
         )
     }
 }
 
+@Composable
 private fun relativeTime(ts: Long): String {
     val diff = System.currentTimeMillis() - ts
     return when {
-        diff < 60_000L -> "Vừa xong"
-        diff < 3_600_000L -> "${diff / 60_000L} phút trước"
-        diff < 86_400_000L -> "${diff / 3_600_000L} giờ trước"
-        diff < 7 * 86_400_000L -> "${diff / 86_400_000L} ngày trước"
+        diff < 60_000L -> stringResource(R.string.time_now)
+        diff < 3_600_000L -> stringResource(R.string.time_minutes, (diff / 60_000L).toInt())
+        diff < 86_400_000L -> stringResource(R.string.time_hours, (diff / 3_600_000L).toInt())
+        diff < 7 * 86_400_000L -> stringResource(R.string.time_days, (diff / 86_400_000L).toInt())
         else -> SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(ts))
     }
 }

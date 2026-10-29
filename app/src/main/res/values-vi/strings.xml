@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SVG Viewer</string>
+
+    <!-- common -->
+    <string name="action_close">Đóng</string>
+    <string name="action_ok">Đã hiểu</string>
+    <string name="action_apply">Áp dụng</string>
+
+    <!-- home -->
+    <string name="home_title">Vector sống động.\nXuất ảnh tới 8K.</string>
+    <string name="home_subtitle">Chạy SMIL và CSS animation, zoom mượt, xuất PNG nền trong suốt.</string>
+    <string name="home_open_file">Mở tệp SVG</string>
+    <string name="home_paste_code">Dán mã SVG</string>
+    <string name="home_spec_formats">SMIL · CSS</string>
+    <string name="home_spec_sizes">1080p · 4K · 8K</string>
+    <string name="home_spec_alpha">PNG alpha</string>
+    <string name="home_samples">Mẫu có chuyển động</string>
+    <string name="home_samples_count">%1$d</string>
+    <string name="home_recents">Gần đây</string>
+    <string name="home_recents_count">%1$d tệp</string>
+    <string name="home_recents_empty">Tệp bạn mở sẽ được ghim ở đây để mở lại nhanh.</string>
+    <string name="home_clear_recents">Xoá danh sách gần đây</string>
+    <string name="home_tip">Chạm 2 lần để phóng to, kéo 2 ngón để zoom, giữ 1 ngón để di chuyển. Chia sẻ tệp SVG từ app khác rồi chọn SVG Viewer để mở tại đây.</string>
+    <string name="home_cd_theme_light">Chuyển sang giao diện sáng</string>
+    <string name="home_cd_theme_dark">Chuyển sang giao diện tối</string>
+    <string name="home_cd_settings">Cài đặt</string>
+    <string name="home_cd_remove_recent">Xoá %1$s khỏi danh sách</string>
+
+    <!-- relative time -->
+    <string name="time_now">Vừa xong</string>
+    <string name="time_minutes">%1$d phút trước</string>
+    <string name="time_hours">%1$d giờ trước</string>
+    <string name="time_days">%1$d ngày trước</string>
+
+    <!-- viewer -->
+    <string name="viewer_cd_back">Quay lại</string>
+    <string name="viewer_cd_info">Thông tin tệp</string>
+    <string name="viewer_cd_export">Xuất PNG</string>
+    <string name="viewer_cd_fit">Vừa khung</string>
+    <string name="viewer_cd_zoom_in">Phóng to</string>
+    <string name="viewer_cd_zoom_out">Thu nhỏ</string>
+    <string name="viewer_cd_play">Phát chuyển động</string>
+    <string name="viewer_cd_pause">Tạm dừng chuyển động</string>
+    <string name="viewer_cd_replay">Chạy lại từ đầu</string>
+    <string name="viewer_cd_canvas">Đổi nền canvas</string>
+    <string name="viewer_loading">Đang nạp SVG…</string>
+
+    <!-- export -->
+    <string name="export_title">Xuất ảnh PNG</string>
+    <string name="export_subtitle">Khung nhìn %1$s · giữ nguyên tỉ lệ gốc</string>
+    <string name="export_size">Kích thước ảnh</string>
+    <string name="export_width">Chiều rộng</string>
+    <string name="export_height">Chiều cao</string>
+    <string name="export_lock">Giữ tỉ lệ gốc</string>
+    <string name="export_background">Nền</string>
+    <string name="export_bg_transparent">Trong suốt</string>
+    <string name="export_bg_custom">Màu tuỳ chọn</string>
+    <string name="export_bg_pick">Chọn</string>
+    <string name="export_action">Xuất PNG</string>
+    <string name="export_action_size">Xuất %1$d × %2$d</string>
+    <string name="export_saved_hint">Lưu vào Thư viện ảnh › Pictures/SVG Viewer</string>
+    <string name="export_running">Đang kết xuất PNG</string>
+    <string name="export_running_size">%1$d × %2$d</string>
+    <string name="export_invalid_size">Kích thước phải trong khoảng 16 – 16384 px</string>
+    <string name="export_saved">Đã lưu PNG %1$d × %2$d vào Thư viện ảnh</string>
+    <string name="export_share">Chia sẻ</string>
+    <string name="export_failed">Không lưu được ảnh: %1$s</string>
+    <string name="export_permission">Cần quyền ghi bộ nhớ để lưu ảnh PNG</string>
+    <string name="export_share_chooser">Chia sẻ ảnh PNG</string>
+
+    <!-- file info -->
+    <string name="info_title">Thông tin tệp</string>
+    <string name="info_name">Tên</string>
+    <string name="info_viewbox">Khung nhìn</string>
+    <string name="info_size">Kích thước</string>
+    <string name="info_bytes">Dung lượng</string>
+    <string name="info_source">Nguồn</string>
+    <string name="info_elements">Phần tử</string>
+    <string name="info_unknown">Không khai báo</string>
+    <string name="info_elements_count">%1$d thẻ</string>
+    <string name="info_source_file">Tệp trên máy</string>
+    <string name="info_source_sample">Mẫu có sẵn</string>
+    <string name="info_source_clipboard">Mã đã dán</string>
+
+    <!-- settings -->
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_appearance">Giao diện</string>
+    <string name="theme_system">Theo máy</string>
+    <string name="theme_light">Sáng</string>
+    <string name="theme_dark">Tối</string>
+    <string name="settings_language">Ngôn ngữ</string>
+    <string name="language_system">Theo hệ thống</string>
+    <string name="language_vi">Tiếng Việt</string>
+    <string name="language_en">English</string>
+    <string name="settings_canvas">Nền canvas mặc định</string>
+    <string name="settings_haptics">Phản hồi rung</string>
+    <string name="settings_haptics_desc">Rung nhẹ ở mỗi thao tác</string>
+    <string name="settings_version">Phiên bản %1$s</string>
+    <string name="settings_footer">Giao diện đen trắng, font Urbanist, icon Phosphor.</string>
+    <string name="settings_cd_close">Đóng cài đặt</string>
+
+    <!-- canvas -->
+    <string name="canvas_title">Nền canvas</string>
+    <string name="canvas_checker_light">Trong suốt sáng</string>
+    <string name="canvas_checker_dark">Trong suốt tối</string>
+    <string name="canvas_white">Trắng</string>
+    <string name="canvas_black">Đen</string>
+    <string name="canvas_gray">Xám</string>
+    <string name="canvas_cream">Kem</string>
+    <string name="canvas_slate">Xanh đêm</string>
+    <string name="canvas_ink">Xanh mực</string>
+
+    <!-- paste sheet -->
+    <string name="paste_title">Dán mã SVG</string>
+    <string name="paste_subtitle">Dán markup, xem phần tô màu rồi mở.</string>
+    <string name="paste_hint">&lt;svg viewBox="0 0 24 24"&gt; … &lt;/svg&gt;</string>
+    <string name="paste_from_clipboard">Dán</string>
+    <string name="paste_clear">Xoá</string>
+    <string name="paste_preview">Xem SVG</string>
+    <string name="paste_empty">Chưa có nội dung để mở</string>
+    <string name="paste_invalid">Nội dung này không giống mã SVG</string>
+    <string name="paste_clipboard_empty">Bộ nhớ tạm không có văn bản</string>
+    <string name="paste_chars">%1$d ký tự</string>
+    <string name="paste_cd_close">Đóng trình soạn</string>
+
+    <!-- errors -->
+    <string name="error_open_title">Không mở được tệp</string>
+    <string name="error_not_svg">Tệp này không chứa nội dung SVG</string>
+    <string name="error_too_large">Tệp quá lớn (giới hạn 24 MB)</string>
+    <string name="error_read">Không đọc được tệp SVG</string>
+    <string name="error_share_text">Nội dung được chia sẻ không chứa mã SVG</string>
+    <string name="error_sample">Không nạp được mẫu %1$s</string>
+    <string name="error_no_svg_element">Không tìm thấy phần tử &lt;svg&gt; trong tệp</string>
+    <string name="error_render">Không dựng lại được SVG để xuất ảnh</string>
+    <string name="error_render_detail">Không kết xuất được PNG: %1$s</string>
+
+    <!-- colour picker -->
+    <string name="color_title">Màu nền</string>
+    <string name="color_hex">HEX</string>
+    <string name="color_invalid_hex">Nhập mã hex, ví dụ #1A1A1A</string>
+
+    <!-- extras -->
+    <string name="viewer_unknown_size">Không rõ kích thước</string>
+    <string name="export_presets">Cỡ nhanh</string>
+    <string name="export_px">px</string>
+    <string name="export_limit">16 – 16384 px mỗi cạnh</string>
+    <string name="export_custom_color">Màu tuỳ chọn</string>
+    <string name="error_generic">Đã có lỗi xảy ra</string>
+    <string name="action_done">Xong</string>
+
+    <!-- samples -->
+    <string name="sample_aurora">Quỹ đạo sáng</string>
+    <string name="sample_aurora_desc">Gradient chuyển động</string>
+    <string name="sample_orbit">Vòng xoay</string>
+    <string name="sample_orbit_desc">Xoay bằng SMIL</string>
+    <string name="sample_waves">Sóng lượn</string>
+    <string name="sample_waves_desc">Biến đổi đường cong</string>
+    <string name="sample_pulse">Lưới nhịp</string>
+    <string name="sample_pulse_desc">CSS keyframes</string>
+</resources>

@@ -49,6 +49,12 @@ object SvgLoader {
         return build(null, displayName, markup, markup.toByteArray().size.toLong(), SvgDocument.Origin.SAMPLE)
     }
 
+    /** Nạp lại từ bản sao đã lưu trong bộ nhớ app (danh sách gần đây). */
+    fun fromCached(text: String, displayName: String): SvgDocument? {
+        if (!text.contains("<svg", ignoreCase = true)) return null
+        return build(null, displayName, text, text.toByteArray().size.toLong(), SvgDocument.Origin.FILE)
+    }
+
     fun fromText(text: String, displayName: String): SvgDocument? {
         if (!text.contains("<svg", ignoreCase = true)) return null
         return build(null, displayName, text, text.toByteArray().size.toLong(), SvgDocument.Origin.CLIPBOARD)

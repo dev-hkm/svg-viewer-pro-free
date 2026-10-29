@@ -44,6 +44,20 @@
                 <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\\.svg" />
             </intent-filter>
 
+            <!--
+              Tệp .txt chưa được đổi tên nhưng bên trong là SVG.
+              Chỉ nhận đuôi .txt để không tranh chấp với mọi tệp văn bản khác.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:mimeType="text/plain" android:pathPattern=".*\\.txt" />
+                <data android:scheme="file" android:mimeType="text/plain" android:pathPattern=".*\\.txt" />
+                <data android:scheme="content" android:mimeType="text/plain" android:pathPattern=".*\\..*\\.txt" />
+                <data android:scheme="file" android:mimeType="text/plain" android:pathPattern=".*\\..*\\.txt" />
+            </intent-filter>
+
             <!-- Chia sẻ tệp từ app khác: nhận mọi định dạng rồi tự kiểm tra nội dung -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

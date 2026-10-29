@@ -33,7 +33,7 @@ data class SvgDocument(
                 return "${fmt(vb[2])} × ${fmt(vb[3])}"
             }
             if (width != null && height != null) return "${fmt(width)} × ${fmt(height)}"
-            return "Không rõ kích thước"
+            return ""
         }
 
     val sizeLabel: String

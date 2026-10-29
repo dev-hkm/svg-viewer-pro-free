@@ -43,6 +43,9 @@ object AppIcons {
     val Checker: ImageVector get() = LightGroup.Checkerboard
     val Grid: ImageVector get() = LightGroup.GridFour
     val Refresh: ImageVector get() = LightGroup.ArrowClockwise
+    val Lock: ImageVector get() = LightGroup.LockSimple
+    val LockOpen: ImageVector get() = LightGroup.LockSimpleOpen
+    val Ruler: ImageVector get() = LightGroup.Ruler
 
     val Sparkle: ImageVector get() = LightGroup.Sparkle
     val Wave: ImageVector get() = LightGroup.Waveform

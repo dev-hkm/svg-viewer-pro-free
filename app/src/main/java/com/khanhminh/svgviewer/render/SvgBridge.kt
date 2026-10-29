@@ -15,6 +15,7 @@ class SvgBridge {
     var onError: ((String) -> Unit)? = null
     var onProgress: ((Int) -> Unit)? = null
     var onExportDone: ((Int, Int) -> Unit)? = null
+    var onExportError: ((String, String) -> Unit)? = null
     var chunkSink: ((String) -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -50,7 +51,7 @@ class SvgBridge {
     }
 
     @JavascriptInterface
-    fun exportError(message: String) {
-        main.post { onError?.invoke(message) }
+    fun exportError(code: String, detail: String) {
+        main.post { onExportError?.invoke(code, detail) }
     }
 }

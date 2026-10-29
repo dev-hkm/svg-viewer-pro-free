@@ -1,4 +1,161 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SVG Viewer</string>
+
+    <!-- common -->
+    <string name="action_close">Close</string>
+    <string name="action_ok">Got it</string>
+    <string name="action_apply">Apply</string>
+
+    <!-- home -->
+    <string name="home_title">Living vectors.\nExports up to 8K.</string>
+    <string name="home_subtitle">Play SMIL and CSS animation, zoom smoothly, export transparent PNG.</string>
+    <string name="home_open_file">Open SVG file</string>
+    <string name="home_paste_code">Paste SVG code</string>
+    <string name="home_spec_formats">SMIL · CSS</string>
+    <string name="home_spec_sizes">1080p · 4K · 8K</string>
+    <string name="home_spec_alpha">PNG alpha</string>
+    <string name="home_samples">Samples in motion</string>
+    <string name="home_samples_count">%1$d</string>
+    <string name="home_recents">Recent</string>
+    <string name="home_recents_count">%1$d files</string>
+    <string name="home_recents_empty">Files you open are pinned here so you can jump back in.</string>
+    <string name="home_clear_recents">Clear recent files</string>
+    <string name="home_tip">Double tap to zoom, pinch with two fingers, drag with one. Share an SVG from any app and pick SVG Viewer to open it here.</string>
+    <string name="home_cd_theme_light">Switch to light theme</string>
+    <string name="home_cd_theme_dark">Switch to dark theme</string>
+    <string name="home_cd_settings">Settings</string>
+    <string name="home_cd_remove_recent">Remove %1$s from recents</string>
+
+    <!-- relative time -->
+    <string name="time_now">Just now</string>
+    <string name="time_minutes">%1$d min ago</string>
+    <string name="time_hours">%1$d h ago</string>
+    <string name="time_days">%1$d d ago</string>
+
+    <!-- viewer -->
+    <string name="viewer_cd_back">Back</string>
+    <string name="viewer_cd_info">File details</string>
+    <string name="viewer_cd_export">Export PNG</string>
+    <string name="viewer_cd_fit">Fit to screen</string>
+    <string name="viewer_cd_zoom_in">Zoom in</string>
+    <string name="viewer_cd_zoom_out">Zoom out</string>
+    <string name="viewer_cd_play">Play animation</string>
+    <string name="viewer_cd_pause">Pause animation</string>
+    <string name="viewer_cd_replay">Restart animation</string>
+    <string name="viewer_cd_canvas">Canvas background</string>
+    <string name="viewer_loading">Loading SVG…</string>
+
+    <!-- export -->
+    <string name="export_title">Export PNG</string>
+    <string name="export_subtitle">Viewport %1$s · aspect ratio preserved</string>
+    <string name="export_size">Output size</string>
+    <string name="export_width">Width</string>
+    <string name="export_height">Height</string>
+    <string name="export_lock">Keep aspect ratio</string>
+    <string name="export_background">Background</string>
+    <string name="export_bg_transparent">Transparent</string>
+    <string name="export_bg_custom">Custom colour</string>
+    <string name="export_bg_pick">Pick</string>
+    <string name="export_action">Export PNG</string>
+    <string name="export_action_size">Export %1$d × %2$d</string>
+    <string name="export_saved_hint">Saved to Gallery › Pictures/SVG Viewer</string>
+    <string name="export_running">Rendering PNG</string>
+    <string name="export_running_size">%1$d × %2$d</string>
+    <string name="export_invalid_size">Size must be between 16 and 16384 px</string>
+    <string name="export_saved">Saved %1$d × %2$d PNG to your gallery</string>
+    <string name="export_share">Share</string>
+    <string name="export_failed">Couldn\'t save the image: %1$s</string>
+    <string name="export_permission">Storage permission is needed to save the PNG</string>
+    <string name="export_share_chooser">Share PNG</string>
+
+    <!-- file info -->
+    <string name="info_title">File details</string>
+    <string name="info_name">Name</string>
+    <string name="info_viewbox">ViewBox</string>
+    <string name="info_size">Size</string>
+    <string name="info_bytes">File size</string>
+    <string name="info_source">Source</string>
+    <string name="info_elements">Elements</string>
+    <string name="info_unknown">Not declared</string>
+    <string name="info_elements_count">%1$d tags</string>
+    <string name="info_source_file">Local file</string>
+    <string name="info_source_sample">Built-in sample</string>
+    <string name="info_source_clipboard">Pasted code</string>
+
+    <!-- settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System</string>
+    <string name="language_vi">Tiếng Việt</string>
+    <string name="language_en">English</string>
+    <string name="settings_canvas">Default canvas</string>
+    <string name="settings_haptics">Haptic feedback</string>
+    <string name="settings_haptics_desc">A soft pulse on every action</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_footer">Black and white design, Urbanist type, Phosphor icons.</string>
+    <string name="settings_cd_close">Close settings</string>
+
+    <!-- canvas -->
+    <string name="canvas_title">Canvas background</string>
+    <string name="canvas_checker_light">Transparent light</string>
+    <string name="canvas_checker_dark">Transparent dark</string>
+    <string name="canvas_white">White</string>
+    <string name="canvas_black">Black</string>
+    <string name="canvas_gray">Gray</string>
+    <string name="canvas_cream">Cream</string>
+    <string name="canvas_slate">Midnight</string>
+    <string name="canvas_ink">Ink blue</string>
+
+    <!-- paste sheet -->
+    <string name="paste_title">Paste SVG code</string>
+    <string name="paste_subtitle">Paste markup, check the highlight, then open it.</string>
+    <string name="paste_hint">&lt;svg viewBox="0 0 24 24"&gt; … &lt;/svg&gt;</string>
+    <string name="paste_from_clipboard">Paste</string>
+    <string name="paste_clear">Clear</string>
+    <string name="paste_preview">View SVG</string>
+    <string name="paste_empty">Nothing to open yet</string>
+    <string name="paste_invalid">That doesn\'t look like SVG markup</string>
+    <string name="paste_clipboard_empty">The clipboard has no text</string>
+    <string name="paste_chars">%1$d characters</string>
+    <string name="paste_cd_close">Close editor</string>
+
+    <!-- errors -->
+    <string name="error_open_title">Couldn\'t open the file</string>
+    <string name="error_not_svg">This file doesn\'t contain SVG markup</string>
+    <string name="error_too_large">File is too large (24 MB limit)</string>
+    <string name="error_read">Couldn\'t read the SVG file</string>
+    <string name="error_share_text">The shared text doesn\'t contain SVG markup</string>
+    <string name="error_sample">Couldn\'t load the %1$s sample</string>
+    <string name="error_no_svg_element">No &lt;svg&gt; element found in this file</string>
+    <string name="error_render">Couldn\'t rebuild the SVG for export</string>
+    <string name="error_render_detail">Couldn\'t render the PNG: %1$s</string>
+
+    <!-- colour picker -->
+    <string name="color_title">Background colour</string>
+    <string name="color_hex">HEX</string>
+    <string name="color_invalid_hex">Enter a hex value like #1A1A1A</string>
+
+    <!-- extras -->
+    <string name="viewer_unknown_size">Unknown size</string>
+    <string name="export_presets">Quick presets</string>
+    <string name="export_px">px</string>
+    <string name="export_limit">16 – 16384 px per side</string>
+    <string name="export_custom_color">Custom colour</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="action_done">Done</string>
+
+    <!-- samples -->
+    <string name="sample_aurora">Aurora Orb</string>
+    <string name="sample_aurora_desc">Orbiting gradient</string>
+    <string name="sample_orbit">Orbit Loader</string>
+    <string name="sample_orbit_desc">SMIL rotation</string>
+    <string name="sample_waves">Wave Motion</string>
+    <string name="sample_waves_desc">Path morphing</string>
+    <string name="sample_pulse">Pulse Grid</string>
+    <string name="sample_pulse_desc">CSS keyframes</string>
 </resources>

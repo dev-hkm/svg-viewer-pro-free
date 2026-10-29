@@ -1,7 +1,11 @@
 package com.khanhminh.svgviewer.ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -96,6 +100,41 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp)
 )
 
+private val ThemeEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+/**
+ * Mọi màu bề mặt được nội suy khi đổi theme, nên chuyển Sáng ⇄ Tối
+ * là một chuyển động mượt thay vì nhảy màu tức thì.
+ */
+@Composable
+private fun animated(target: ColorScheme): ColorScheme {
+    val spec = tween<Color>(durationMillis = 420, easing = ThemeEasing)
+
+    return target.copy(
+        primary = animateColorAsState(target.primary, spec, label = "primary").value,
+        onPrimary = animateColorAsState(target.onPrimary, spec, label = "onPrimary").value,
+        primaryContainer = animateColorAsState(target.primaryContainer, spec, label = "pc").value,
+        onPrimaryContainer = animateColorAsState(target.onPrimaryContainer, spec, label = "opc").value,
+        secondary = animateColorAsState(target.secondary, spec, label = "secondary").value,
+        secondaryContainer = animateColorAsState(target.secondaryContainer, spec, label = "sc").value,
+        onSecondaryContainer = animateColorAsState(target.onSecondaryContainer, spec, label = "osc").value,
+        tertiary = animateColorAsState(target.tertiary, spec, label = "tertiary").value,
+        background = animateColorAsState(target.background, spec, label = "background").value,
+        onBackground = animateColorAsState(target.onBackground, spec, label = "onBackground").value,
+        surface = animateColorAsState(target.surface, spec, label = "surface").value,
+        onSurface = animateColorAsState(target.onSurface, spec, label = "onSurface").value,
+        surfaceVariant = animateColorAsState(target.surfaceVariant, spec, label = "sv").value,
+        onSurfaceVariant = animateColorAsState(target.onSurfaceVariant, spec, label = "osv").value,
+        surfaceContainer = animateColorAsState(target.surfaceContainer, spec, label = "scl").value,
+        surfaceContainerHigh = animateColorAsState(target.surfaceContainerHigh, spec, label = "sch").value,
+        surfaceContainerHighest = animateColorAsState(target.surfaceContainerHighest, spec, label = "schi").value,
+        outline = animateColorAsState(target.outline, spec, label = "outline").value,
+        outlineVariant = animateColorAsState(target.outlineVariant, spec, label = "outlineVariant").value,
+        inverseSurface = animateColorAsState(target.inverseSurface, spec, label = "is").value,
+        inverseOnSurface = animateColorAsState(target.inverseOnSurface, spec, label = "ios").value
+    )
+}
+
 /**
  * Theme duy nhất của app: đen - trắng - xám, không dynamic color.
  * Cả Light và Dark đều được thiết kế riêng, không phải đảo màu.
@@ -106,7 +145,7 @@ fun SvgViewerTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkScheme else LightScheme,
+        colorScheme = animated(if (darkTheme) DarkScheme else LightScheme),
         typography = AppTypography,
         shapes = AppShapes,
         content = content

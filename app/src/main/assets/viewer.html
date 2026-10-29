@@ -91,9 +91,9 @@
   function init() {
     var svg = svgEl();
     if (!svg) {
-      errBox.textContent = "Không tìm thấy phần tử <svg> trong tệp.";
+      errBox.textContent = "No <svg> element found.";
       errBox.style.display = "flex";
-      bridge("error", ["Không tìm thấy phần tử <svg> trong tệp."]);
+      bridge("error", ["no-svg"]);
       return;
     }
     var size = intrinsicSize(svg);
@@ -276,21 +276,25 @@
     return btoa(bin);
   }
 
-  function exportPng(longEdge, transparent) {
+  /**
+   * Xuất PNG với kích thước tuỳ ý.
+   * @param {number} outW chiều rộng ảnh (px)
+   * @param {number} outH chiều cao ảnh (px)
+   * @param {string|null} bg màu nền "#RRGGBB"; null = trong suốt
+   */
+  function exportPng(outW, outH, bg) {
     if (exporting) { return; }
     exporting = true;
 
     var svg = svgEl();
     if (!svg) {
       exporting = false;
-      bridge("exportError", ["Không tìm thấy nội dung SVG."]);
+      bridge("exportError", ["no-svg"]);
       return;
     }
 
-    var ar = S.w / S.h;
-    var w, h;
-    if (S.w >= S.h) { w = longEdge; h = Math.round(longEdge / ar); }
-    else { h = longEdge; w = Math.round(longEdge * ar); }
+    var w = Math.max(1, Math.round(outW));
+    var h = Math.max(1, Math.round(outH));
 
     var clone = svg.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -309,9 +313,9 @@
     var url = "data:image/svg+xml;base64," + utf8Base64(xml);
     var img = new Image();
 
-    function fail(msg) {
+    function fail(code, detail) {
       exporting = false;
-      bridge("exportError", [msg]);
+      bridge("exportError", [code, detail || ""]);
     }
 
     img.onload = function () {
@@ -321,8 +325,8 @@
         canvas.width = w;
         canvas.height = h;
         var ctx = canvas.getContext("2d");
-        if (!transparent) {
-          ctx.fillStyle = "#FFFFFF";
+        if (bg) {
+          ctx.fillStyle = bg;
           ctx.fillRect(0, 0, w, h);
         }
         ctx.imageSmoothingEnabled = true;
@@ -341,12 +345,12 @@
         exporting = false;
         bridge("exportDone", [w, h]);
       } catch (err) {
-        fail("Không thể kết xuất PNG: " + err.message);
+        fail("render-failed", err.message);
       }
     };
 
     img.onerror = function () {
-      fail("Không thể dựng lại SVG để xuất ảnh.");
+      fail("decode-failed");
     };
 
     bridge("progress", [15]);
