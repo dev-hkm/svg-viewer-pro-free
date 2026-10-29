@@ -127,7 +127,7 @@
     <!-- errors -->
     <string name="error_open_title">Couldn\'t open the file</string>
     <string name="error_not_svg">This file doesn\'t contain SVG markup</string>
-    <string name="error_too_large">File is too large (24 MB limit)</string>
+    <string name="error_too_large">File is too large (48 MB limit)</string>
     <string name="error_read">Couldn\'t read the SVG file</string>
     <string name="error_share_text">The shared text doesn\'t contain SVG markup</string>
     <string name="error_sample">Couldn\'t load the %1$s sample</string>

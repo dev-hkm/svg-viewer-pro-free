@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,29 +90,50 @@ fun AppBackground(
 }
 
 /**
- * Logo trong app: cùng một glyph với icon launcher (chữ S dựng từ hai cung bezier),
- * vẽ bằng màu chữ của theme để đổi màu theo Light/Dark.
+ * Logo trong app: cùng hình với icon launcher — 4 trục xoay 45° tạo 8 đỉnh
+ * quanh một hồng tâm 3 lớp — vẽ bằng màu chữ của theme để đổi theo Light/Dark.
  */
 @Composable
 fun AppLogo(modifier: Modifier = Modifier, size: Dp = 32.dp, tint: Color? = null) {
     val color = tint ?: MaterialTheme.colorScheme.onBackground
+    val backdrop = MaterialTheme.colorScheme.background
     Canvas(modifier.size(size)) {
-        val s = this.size.width / 108f
-        val path = Path().apply {
-            moveTo(64.32f * s, 45.4f * s)
-            cubicTo(64.32f * s, 36.8f * s, 43.68f * s, 36.8f * s, 43.68f * s, 45.4f * s)
-            cubicTo(43.68f * s, 54f * s, 64.32f * s, 54f * s, 64.32f * s, 62.6f * s)
-            cubicTo(64.32f * s, 71.2f * s, 43.68f * s, 71.2f * s, 43.68f * s, 62.6f * s)
+        // Ngoài launcher, logo không bị mask nên cho figure lấp gần kín khung:
+        // đường kính figure = 64/68 chiều rộng ô, đủ thoáng mà vẫn rõ ở 22dp.
+        val u = this.size.minDimension / 68f
+        val c = Offset(this.size.width / 2f, this.size.height / 2f)
+        val half = 25.6f * u
+        val spokeWidth = 3.459f * u
+        val nodeRadius = 4.843f * u
+        val nodeStroke = 3.114f * u
+        val ringOuter = 14.184f * u
+        val ringInner = 7.957f * u
+        val dot = 3.114f * u
+
+        repeat(4) { index ->
+            rotate(index * 45f, pivot = c) {
+                drawLine(
+                    color = color,
+                    start = Offset(c.x, c.y - half),
+                    end = Offset(c.x, c.y + half),
+                    strokeWidth = spokeWidth,
+                    cap = StrokeCap.Round
+                )
+                listOf(c.y - half, c.y + half).forEach { y ->
+                    drawCircle(color = backdrop, radius = nodeRadius, center = Offset(c.x, y))
+                    drawCircle(
+                        color = color,
+                        radius = nodeRadius,
+                        center = Offset(c.x, y),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = nodeStroke)
+                    )
+                }
+            }
         }
-        drawPath(
-            path = path,
-            color = color,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = 7.8f * s,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
-            )
-        )
+
+        drawCircle(color = color, radius = ringOuter, center = c)
+        drawCircle(color = backdrop, radius = ringInner, center = c)
+        drawCircle(color = color, radius = dot, center = c)
     }
 }
 

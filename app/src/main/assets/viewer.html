@@ -26,6 +26,28 @@
 </style>
 </head>
 <body>
+<!--
+  Cổng điều khiển requestAnimationFrame. Chèn TRƯỚC nội dung SVG để bắt được
+  cả những bản vẽ tự chạy bằng JavaScript (rất nhiều SVG xuất từ AI Studio,
+  Figma plugin... dựng cảnh và chạy vòng lặp animate bằng rAF).
+-->
+<script>
+  (function () {
+    var raf = window.requestAnimationFrame.bind(window);
+    var held = [];
+    window.__svgPaused = false;
+    window.requestAnimationFrame = function (cb) {
+      return raf(function (t) {
+        if (window.__svgPaused) { held.push(cb); } else { cb(t); }
+      });
+    };
+    window.__flushRaf = function () {
+      var queue = held;
+      held = [];
+      for (var i = 0; i < queue.length; i++) { window.requestAnimationFrame(queue[i]); }
+    };
+  })();
+</script>
   <div id="stage"><!--SVG_CONTENT--></div>
   <div id="error"></div>
 <script>
@@ -235,32 +257,31 @@
   function setPaused(p) {
     var svg = svgEl();
     S.paused = p;
+
+    // SMIL
     if (svg && typeof svg.pauseAnimations === "function") {
       if (p) { try { svg.pauseAnimations(); } catch (err) {} }
       else { try { svg.unpauseAnimations(); } catch (err) {} }
     }
+
+    // CSS keyframes
     if (!pauseStyle) {
       pauseStyle = document.createElement("style");
       document.head.appendChild(pauseStyle);
     }
     pauseStyle.textContent = p
-      ? "*{animation-play-state:paused !important;}"
+      ? "*,*::before,*::after{animation-play-state:paused !important;}"
       : "";
+
+    // Vòng lặp requestAnimationFrame của chính SVG
+    window.__svgPaused = p;
+    if (!p && typeof window.__flushRaf === "function") { window.__flushRaf(); }
   }
 
   function restart() {
-    var svg = svgEl();
-    if (!svg) return;
-    if (typeof svg.setCurrentTime === "function") {
-      try { svg.setCurrentTime(0); } catch (err) {}
-    }
-    // restart CSS animations by re-inserting a clone
-    var clone = svg.cloneNode(true);
-    svg.parentNode.replaceChild(clone, svg);
-    clone.style.width = "100%";
-    clone.style.height = "100%";
-    clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
-    setPaused(false);
+    // Với cảnh do JavaScript dựng, nhân bản DOM sẽ làm mất tham chiếu của
+    // vòng lặp animate nên cảnh đứng hình. Cách đúng là nạp lại toàn bộ tài liệu.
+    bridge("reload");
   }
 
   /* ---------------- export ---------------- */

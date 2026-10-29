@@ -8,17 +8,29 @@ import java.io.IOException
 import java.util.zip.GZIPInputStream
 
 /**
- * Nạp SVG từ Uri, assets hoặc clipboard và chuẩn hoá lại markup
- * để nhúng an toàn vào WebView.
+ * Nạp SVG từ Uri, assets hoặc clipboard và chuẩn hoá markup để nhúng vào WebView.
+ *
+ * Script trong SVG **được giữ nguyên**: rất nhiều SVG (AI Studio, các công cụ
+ * xuất animation) dựng cả cảnh và chạy chuyển động bằng JavaScript, xoá đi là
+ * mất gần hết nội dung. WebView chạy chúng trong hộp cát: app không xin quyền
+ * INTERNET, tắt truy cập tệp/nội dung và chặn điều hướng, nên script chỉ tác
+ * động được lên chính bản vẽ.
  */
 object SvgLoader {
 
-    private const val MAX_BYTES = 24 * 1024 * 1024
+    private const val MAX_BYTES = 48 * 1024 * 1024
 
     private val XML_DECL = Regex("""<\?xml[^>]*\?>""", RegexOption.IGNORE_CASE)
     private val DOCTYPE = Regex("""<!DOCTYPE[^>]*>""", RegexOption.IGNORE_CASE)
-    private val SCRIPT = Regex("""<script[\s\S]*?</script>""", RegexOption.IGNORE_CASE)
-    private val EVENT_ATTR = Regex("""\son[a-zA-Z]+\s*=\s*("[^"]*"|'[^']*')""")
+
+    /**
+     * Khi nhúng vào HTML, `<script>` là "raw text" chứ không phải CDATA,
+     * nên cặp `<![CDATA[` `]]>` phải bỏ đi nếu không JavaScript sẽ lỗi cú pháp.
+     */
+    private val CDATA_SCRIPT = Regex(
+        """(<script\b[^>]*>)\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*(</script>)""",
+        RegexOption.IGNORE_CASE
+    )
     private val VIEWBOX = Regex("""viewBox\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
     private val WIDTH = Regex("""\swidth\s*=\s*["']([\d.]+)""", RegexOption.IGNORE_CASE)
     private val HEIGHT = Regex("""\sheight\s*=\s*["']([\d.]+)""", RegexOption.IGNORE_CASE)
@@ -33,7 +45,7 @@ object SvgLoader {
                 val read = input.read(chunk)
                 if (read <= 0) break
                 total += read
-                if (total > MAX_BYTES) throw IOException("Tệp quá lớn (giới hạn 24 MB)")
+                if (total > MAX_BYTES) throw IOException("Tệp quá lớn (giới hạn 48 MB)")
                 buffer.write(chunk, 0, read)
             }
             buffer.toByteArray()
@@ -90,8 +102,7 @@ object SvgLoader {
         var markup = input.removePrefix("\uFEFF").trim()
         markup = XML_DECL.replace(markup, "")
         markup = DOCTYPE.replace(markup, "")
-        markup = SCRIPT.replace(markup, "")
-        markup = EVENT_ATTR.replace(markup, "")
+        markup = CDATA_SCRIPT.replace(markup) { m -> m.groupValues[1] + m.groupValues[2] + m.groupValues[3] }
         return markup.trim()
     }
 

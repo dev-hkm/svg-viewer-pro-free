@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.view.View
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -232,6 +234,13 @@ fun ViewerScreen(
         }
     }
 
+    /** Nạp lại tài liệu: cách duy nhất để cảnh do JavaScript dựng chạy lại từ đầu. */
+    fun reloadDocument() {
+        paused = false
+        zoom = 1f
+        holder.webView?.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    }
+
     DisposableEffect(bridge) {
         bridge.onZoom = { value -> zoom = value }
         bridge.onProgress = { percent -> exportUi = exportUi.copy(progress = percent) }
@@ -239,10 +248,12 @@ fun ViewerScreen(
             exportUi = ExportUi()
             scope.launch { snackbar.showSnackbar(message) }
         }
+        bridge.onReload = { reloadDocument() }
         onDispose {
             bridge.onZoom = null
             bridge.onProgress = null
             bridge.onError = null
+            bridge.onReload = null
             bridge.chunkSink = null
             bridge.onExportDone = null
             bridge.onExportError = null
@@ -282,10 +293,18 @@ fun ViewerScreen(
                 val web = WebView(ctx)
                 web.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 with(web.settings) {
+                    // SVG được phép chạy script (nhiều cảnh dựng bằng JS), nhưng bị
+                    // khoá trong hộp cát: app không có quyền INTERNET, không đọc được
+                    // tệp, không mở cửa sổ mới và không điều hướng đi đâu cả.
                     javaScriptEnabled = true
                     domStorageEnabled = true
                     allowFileAccess = false
                     allowContentAccess = false
+                    allowFileAccessFromFileURLs = false
+                    allowUniversalAccessFromFileURLs = false
+                    setBlockNetworkLoads(true)
+                    javaScriptCanOpenWindowsAutomatically = false
+                    setSupportMultipleWindows(false)
                     setSupportZoom(false)
                     builtInZoomControls = false
                     displayZoomControls = false
@@ -299,6 +318,22 @@ fun ViewerScreen(
                     override fun onPageFinished(view: WebView, url: String?) {
                         super.onPageFinished(view, url)
                         view.evaluateJavascript("window.SVGViewer && window.SVGViewer.fit();", null)
+                    }
+
+                    // Chặn mọi điều hướng: SVG chỉ được vẽ, không được dắt app đi đâu.
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest
+                    ): Boolean = true
+
+                    override fun shouldInterceptRequest(
+                        view: WebView,
+                        request: WebResourceRequest
+                    ): WebResourceResponse? {
+                        val scheme = request.url.scheme?.lowercase()
+                        return if (scheme == "http" || scheme == "https" || scheme == "ftp") {
+                            WebResourceResponse("text/plain", "utf-8", null)
+                        } else null
                     }
                 }
                 web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
@@ -448,10 +483,7 @@ fun ViewerScreen(
             IconAction(
                 icon = AppIcons.Replay,
                 contentDescription = stringResource(R.string.viewer_cd_replay),
-                onClick = {
-                    js("window.SVGViewer.restart()")
-                    paused = false
-                },
+                onClick = { reloadDocument() },
                 tint = scheme.onSurfaceVariant
             )
         }

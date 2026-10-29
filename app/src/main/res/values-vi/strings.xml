@@ -127,7 +127,7 @@
     <!-- errors -->
     <string name="error_open_title">Không mở được tệp</string>
     <string name="error_not_svg">Tệp này không chứa nội dung SVG</string>
-    <string name="error_too_large">Tệp quá lớn (giới hạn 24 MB)</string>
+    <string name="error_too_large">Tệp quá lớn (giới hạn 48 MB)</string>
     <string name="error_read">Không đọc được tệp SVG</string>
     <string name="error_share_text">Nội dung được chia sẻ không chứa mã SVG</string>
     <string name="error_sample">Không nạp được mẫu %1$s</string>

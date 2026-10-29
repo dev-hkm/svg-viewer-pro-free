@@ -16,6 +16,7 @@ class SvgBridge {
     var onProgress: ((Int) -> Unit)? = null
     var onExportDone: ((Int, Int) -> Unit)? = null
     var onExportError: ((String, String) -> Unit)? = null
+    var onReload: (() -> Unit)? = null
     var chunkSink: ((String) -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -53,5 +54,11 @@ class SvgBridge {
     @JavascriptInterface
     fun exportError(code: String, detail: String) {
         main.post { onExportError?.invoke(code, detail) }
+    }
+
+    /** SVG yêu cầu chạy lại từ đầu: nạp lại tài liệu để script khởi tạo lại sạch. */
+    @JavascriptInterface
+    fun reload() {
+        main.post { onReload?.invoke() }
     }
 }
