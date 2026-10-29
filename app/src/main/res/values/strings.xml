@@ -172,4 +172,63 @@
     <string name="sample_waves_desc">Path morphing</string>
     <string name="sample_pulse">Pulse Grid</string>
     <string name="sample_pulse_desc">CSS keyframes</string>
+    <!-- Pro tools -->
+    <string name="viewer_cd_tools">Pro tools</string>
+    <string name="tools_title">Pro tools</string>
+    <string name="tools_subtitle">Everything you need to hand the file off, not just look at it.</string>
+    <string name="tools_info">File info</string>
+    <string name="tools_info_desc">ViewBox, size, element count, source</string>
+    <string name="tools_copy">Copy SVG code</string>
+    <string name="tools_copy_desc">Put the whole markup on the clipboard</string>
+    <string name="tools_invert">Invert colors</string>
+    <string name="tools_invert_desc">Read dark artwork on a dark canvas</string>
+    <string name="tools_iconset">Icon set</string>
+    <string name="tools_iconset_desc">Export every launcher, iOS and web size at once</string>
+    <string name="tools_optimize">Optimize SVG</string>
+    <string name="tools_optimize_desc">Drop comments, metadata and extra decimals</string>
+    <string name="tools_palette">Color palette</string>
+    <string name="tools_palette_desc">Pull every color out of the drawing</string>
+    <string name="tools_pdf">Print / Save as PDF</string>
+    <string name="tools_pdf_desc">Vector output through the system print dialog</string>
+    <string name="pdf_failed">Cannot open the print dialog</string>
+
+    <!-- Icon set -->
+    <string name="iconset_title">Icon set</string>
+    <string name="iconset_subtitle">One tap exports the whole set, named and sorted into its own folder.</string>
+    <string name="iconset_preset">Preset</string>
+    <string name="iconset_count">%1$d files</string>
+    <string name="iconset_android">Android</string>
+    <string name="iconset_ios">iOS</string>
+    <string name="iconset_web">Web</string>
+    <string name="iconset_bg_white">White</string>
+    <string name="iconset_bg_black">Black</string>
+    <string name="iconset_action">Export %1$d files</string>
+    <string name="iconset_hint">Saved to Pictures/SVG Viewer/&lt;name&gt;_icons</string>
+    <string name="iconset_done">Saved %1$d images</string>
+
+    <!-- Palette -->
+    <string name="palette_title">Color palette</string>
+    <string name="palette_subtitle">Tap a swatch to copy its HEX code.</string>
+    <string name="palette_empty">This drawing has no color values to read.</string>
+    <string name="palette_copied">Copied %1$s</string>
+
+    <!-- Optimizer -->
+    <string name="optimize_title">Optimize SVG</string>
+    <string name="optimize_subtitle">Same drawing, less markup.</string>
+    <string name="optimize_before">Before</string>
+    <string name="optimize_after">After</string>
+    <string name="optimize_saved">Saved %1$d%% of the file</string>
+    <string name="optimize_no_change">Already tight — nothing to strip</string>
+    <string name="optimize_copy">Copy</string>
+    <string name="optimize_save">Save .svg</string>
+    <string name="optimize_hint">Saved to Download/SVG Viewer. Scripts are kept untouched.</string>
+    <string name="optimize_saved_ok">Optimized SVG saved</string>
+
+    <!-- Export format -->
+    <string name="export_format">Format</string>
+    <string name="export_format_png">PNG</string>
+    <string name="export_format_webp">WebP</string>
+    <string name="export_format_jpeg">JPEG</string>
+    <string name="export_quality">Quality · %1$d%%</string>
+    <string name="export_running_batch">%1$d of %2$d</string>
 </resources>

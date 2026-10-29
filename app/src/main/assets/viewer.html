@@ -314,8 +314,10 @@
    * @param {number} outH chiều cao ảnh (px)
    * @param {string|null} bg màu nền "#RRGGBB"; null = trong suốt
    * @param {number} [padding] tỉ lệ lề mỗi cạnh (0..0.45)
+   * @param {string} [format] "png" | "webp" | "jpeg"
+   * @param {number} [quality] chất lượng 0..1 cho webp/jpeg
    */
-  function exportPng(outW, outH, bg, padding) {
+  function exportPng(outW, outH, bg, padding, format, quality) {
     if (exporting) { return; }
     exporting = true;
 
@@ -325,6 +327,13 @@
       bridge("exportError", ["no-svg"]);
       return;
     }
+
+    var mime = format === "jpeg" ? "image/jpeg"
+      : format === "webp" ? "image/webp"
+      : "image/png";
+    // JPEG không có kênh alpha: nền trong suốt sẽ thành đen, nên ép nền trắng.
+    if (mime === "image/jpeg" && !bg) { bg = "#ffffff"; }
+    var q = (typeof quality === "number" && quality > 0 && quality <= 1) ? quality : 0.92;
 
     var w = Math.max(1, Math.round(outW));
     var h = Math.max(1, Math.round(outH));
@@ -369,7 +378,7 @@
         var padY = h * pad;
         ctx.drawImage(img, padX, padY, Math.max(1, w - padX * 2), Math.max(1, h - padY * 2));
         bridge("progress", [70]);
-        var dataUrl = canvas.toDataURL("image/png");
+        var dataUrl = canvas.toDataURL(mime, q);
         var b64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
         var CHUNK = 600000;
         for (var i = 0; i < b64.length; i += CHUNK) {
@@ -451,6 +460,15 @@
     } catch (err) {}
   }
 
+  /**
+   * Đảo sáng/tối cho hình vẽ tối trên nền tối (và ngược lại).
+   * Kèm hue-rotate 180° để màu gốc quay về đúng tông, chỉ đổi độ sáng.
+   */
+  function setInvert(on) {
+    document.documentElement.style.filter =
+      on ? "invert(1) hue-rotate(180deg)" : "";
+  }
+
   /* ---------------- public API ---------------- */
   window.SVGViewer = {
     fit: function () { S.zoom = 1; S.x = 0; S.y = 0; apply(); },
@@ -471,6 +489,7 @@
     exportPng: exportPng,
     snapshot: snapshot,
     setSpeed: setSpeed,
+    setInvert: setInvert,
     getState: function () { return { zoom: S.zoom, w: S.w, h: S.h, base: S.base }; }
   };
 

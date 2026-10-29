@@ -49,6 +49,15 @@ object AppIcons {
     val Speed: ImageVector get() = LightGroup.Gauge
     val Pin: ImageVector get() = LightGroup.PushPin
     val Copy: ImageVector get() = LightGroup.Copy
+    val More: ImageVector get() = LightGroup.DotsThree
+    val Code: ImageVector get() = LightGroup.FileCode
+    val Palette: ImageVector get() = LightGroup.Palette
+    val Swatches: ImageVector get() = LightGroup.Swatches
+    val Printer: ImageVector get() = LightGroup.Printer
+    val IconSet: ImageVector get() = LightGroup.Images
+    val Optimize: ImageVector get() = LightGroup.MagicWand
+    val Invert: ImageVector get() = LightGroup.CircleHalf
+    val Download: ImageVector get() = LightGroup.DownloadSimple
 
     val Sparkle: ImageVector get() = LightGroup.Sparkle
     val Wave: ImageVector get() = LightGroup.Waveform

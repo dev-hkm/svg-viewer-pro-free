@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.util.Base64
 import android.view.View
 import android.webkit.WebResourceRequest
@@ -14,6 +16,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -51,6 +54,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -70,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -89,6 +95,8 @@ import com.khanhminh.svgviewer.R
 import com.khanhminh.svgviewer.data.CanvasBackground
 import com.khanhminh.svgviewer.data.SettingsStore
 import com.khanhminh.svgviewer.data.SvgDocument
+import com.khanhminh.svgviewer.data.SvgOptimizer
+import com.khanhminh.svgviewer.data.SvgPalette
 import com.khanhminh.svgviewer.render.ExportSession
 import com.khanhminh.svgviewer.render.HtmlComposer
 import com.khanhminh.svgviewer.render.ImageSaver
@@ -106,7 +114,30 @@ private class WebViewHolder {
     var webView: WebView? = null
 }
 
-private data class ExportUi(val running: Boolean = false, val progress: Int = 0)
+private data class ExportUi(
+    val running: Boolean = false,
+    val progress: Int = 0,
+    val index: Int = 0,
+    val total: Int = 0
+)
+
+/** Định dạng ảnh kết xuất. WebP nhẹ hơn PNG ~30%, JPEG cho ảnh nhiều màu. */
+private enum class ExportFormat(val key: String, val mime: String, val ext: String) {
+    PNG("png", "image/png", "png"),
+    WEBP("webp", "image/webp", "webp"),
+    JPEG("jpeg", "image/jpeg", "jpg")
+}
+
+private class ExportJob(
+    val width: Int,
+    val height: Int,
+    val background: Color?,
+    val padding: Int,
+    val format: ExportFormat,
+    val quality: Float,
+    val album: String,
+    val fileName: (Int, Int) -> String
+)
 
 private const val MIN_SIDE = 16
 private const val MAX_SIDE = 16384
@@ -134,6 +165,10 @@ fun ViewerScreen(
     val canvasSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val speedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val toolsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val paletteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val optimizeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Dock có 8 phần tử: máy hẹp thì thu nhỏ từng nút để không bị cắt mép.
     val compactDock = LocalConfiguration.current.screenWidthDp < 380
@@ -149,6 +184,13 @@ fun ViewerScreen(
     var showCanvasSheet by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
+    var showTools by remember { mutableStateOf(false) }
+    var showIconSet by remember { mutableStateOf(false) }
+    var showPalette by remember { mutableStateOf(false) }
+    var showOptimize by remember { mutableStateOf(false) }
+    var inverted by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(ExportFormat.PNG) }
+    var exportQuality by remember { mutableIntStateOf(90) }
     var exportUi by remember { mutableStateOf(ExportUi()) }
     var backProgress by remember { mutableFloatStateOf(0f) }
     val activeSession = remember { mutableStateOf<ExportSession?>(null) }
@@ -164,68 +206,131 @@ fun ViewerScreen(
         holder.webView?.evaluateJavascript(code, null)
     }
 
-    fun performExport(width: Int, height: Int, background: Color?, paddingPercent: Int) {
+    /**
+     * Chạy hàng đợi lần lượt: WebView chỉ kết xuất được một ảnh tại một thời
+     * điểm, nên bộ icon nhiều kích thước phải xếp hàng thay vì gọi song song.
+     */
+    fun runJobs(jobs: List<ExportJob>) {
         val view = holder.webView ?: return
+        if (jobs.isEmpty()) return
         activeSession.value?.discard()
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val tmp = File(dir, "svg_${System.currentTimeMillis()}.png")
-        val session = ExportSession(tmp)
-        activeSession.value = session
+        val saved = ArrayList<Uri>()
+        var lastW = 0
+        var lastH = 0
+        exportUi = ExportUi(running = true, progress = 0, index = 0, total = jobs.size)
 
-        exportUi = ExportUi(running = true, progress = 0)
-        bridge.chunkSink = { chunk -> session.append(chunk) }
-        bridge.onExportDone = { w, h ->
-            session.close()
-            bridge.chunkSink = null
-            bridge.onExportDone = null
-            bridge.onExportError = null
+        fun finish() {
+            exportUi = ExportUi()
             scope.launch {
-                val saved = withContext(Dispatchers.IO) {
-                    runCatching { ImageSaver.savePng(context, tmp, document.name, w, h) }
-                }
-                tmp.delete()
-                exportUi = ExportUi()
-                saved.onSuccess { uri ->
-                    haptics.success()
-                    val result = snackbar.showSnackbar(
-                        message = context.getString(R.string.export_saved, w, h),
-                        actionLabel = context.getString(R.string.export_share),
-                        withDismissAction = true
-                    )
-                    if (result == SnackbarResult.ActionPerformed) shareImage(context, uri)
-                }.onFailure { error ->
-                    haptics.warning()
-                    snackbar.showSnackbar(
-                        context.getString(
-                            R.string.export_failed,
-                            error.message ?: context.getString(R.string.error_generic)
-                        )
-                    )
+                haptics.success()
+                val result = snackbar.showSnackbar(
+                    message = if (saved.size > 1) {
+                        context.getString(R.string.iconset_done, saved.size)
+                    } else {
+                        context.getString(R.string.export_saved, lastW, lastH)
+                    },
+                    actionLabel = if (saved.size == 1) {
+                        context.getString(R.string.export_share)
+                    } else null,
+                    withDismissAction = true
+                )
+                if (result == SnackbarResult.ActionPerformed && saved.size == 1) {
+                    shareImage(context, saved.first())
                 }
             }
         }
-        bridge.onExportError = { code, detail ->
+
+        fun fail(message: String) {
             exportUi = ExportUi()
             bridge.chunkSink = null
             bridge.onExportDone = null
             bridge.onExportError = null
-            session.close()
-            tmp.delete()
-            val message = when (code) {
-                "no-svg" -> context.getString(R.string.error_no_svg_element)
-                else -> context.getString(
-                    R.string.error_render_detail,
-                    detail.ifBlank { code }
-                )
+            scope.launch {
+                haptics.warning()
+                snackbar.showSnackbar(message)
             }
-            scope.launch { snackbar.showSnackbar(message) }
         }
 
-        val bgArg = background?.let { "\"${toHex(it)}\"" } ?: "null"
-        val padArg = (paddingPercent.coerceIn(0, 45) / 100f).toString()
-        view.evaluateJavascript(
-            "window.SVGViewer && window.SVGViewer.exportPng($width, $height, $bgArg, $padArg);",
-            null
+        fun step(index: Int) {
+            if (index >= jobs.size) {
+                finish()
+                return
+            }
+            val job = jobs[index]
+            exportUi = exportUi.copy(running = true, index = index, total = jobs.size)
+            val tmp = File(dir, "svg_${System.currentTimeMillis()}_$index.${job.format.ext}")
+            val session = ExportSession(tmp)
+            activeSession.value = session
+
+            bridge.chunkSink = { chunk -> session.append(chunk) }
+            bridge.onExportDone = { w, h ->
+                session.close()
+                bridge.chunkSink = null
+                bridge.onExportDone = null
+                bridge.onExportError = null
+                lastW = w
+                lastH = h
+                scope.launch {
+                    val outcome = withContext(Dispatchers.IO) {
+                        runCatching {
+                            ImageSaver.saveImage(
+                                context = context,
+                                source = tmp,
+                                fileName = job.fileName(w, h),
+                                mime = job.format.mime,
+                                album = job.album
+                            )
+                        }
+                    }
+                    tmp.delete()
+                    outcome.onSuccess { saved.add(it) }
+                    step(index + 1)
+                }
+            }
+            bridge.onExportError = { code, detail ->
+                session.close()
+                tmp.delete()
+                fail(
+                    when (code) {
+                        "no-svg" -> context.getString(R.string.error_no_svg_element)
+                        else -> context.getString(
+                            R.string.error_render_detail,
+                            detail.ifBlank { code }
+                        )
+                    }
+                )
+            }
+
+            val bgArg = job.background?.let { "\"${toHex(it)}\"" } ?: "null"
+            val padArg = (job.padding.coerceIn(0, 45) / 100f).toString()
+            val qualityArg = (job.quality.coerceIn(30f, 100f) / 100f).toString()
+            view.evaluateJavascript(
+                "window.SVGViewer && window.SVGViewer.exportPng(${job.width}, ${job.height}, " +
+                    "$bgArg, $padArg, \"${job.format.key}\", $qualityArg);",
+                null
+            )
+        }
+
+        step(0)
+    }
+
+    fun performExport(width: Int, height: Int, background: Color?, paddingPercent: Int) {
+        val base = ImageSaver.sanitize(document.name)
+        val format = exportFormat
+        runJobs(
+            listOf(
+                ExportJob(
+                    width = width,
+                    height = height,
+                    background = background,
+                    padding = paddingPercent,
+                    format = format,
+                    quality = exportQuality.toFloat(),
+                    album = "SVG Viewer",
+                    fileName = { w, h -> "${base}_${w}x${h}_${ImageSaver.stamp()}.${format.ext}" }
+                )
+            )
         )
     }
 
@@ -257,6 +362,37 @@ fun ViewerScreen(
         paused = false
         zoom = 1f
         holder.webView?.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    }
+
+    fun copyCode() {
+        clipboard.setText(AnnotatedString(document.markup))
+        haptics.success()
+        scope.launch { snackbar.showSnackbar(context.getString(R.string.info_code_copied)) }
+    }
+
+    /**
+     * In / lưu PDF qua hộp thoại hệ thống. WebView in theo vector nên tệp PDF
+     * giữ được nét sắc ở mọi kích thước, khác hẳn ảnh PNG xuất ra.
+     * Đưa về đúng khung trước khi in để bản in không bị lệch theo mức zoom.
+     */
+    fun printDocument() {
+        val web = holder.webView ?: return
+        js("window.SVGViewer && window.SVGViewer.fit()")
+        web.postDelayed({
+            runCatching {
+                val manager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+                manager.print(
+                    document.name,
+                    web.createPrintDocumentAdapter(document.name),
+                    PrintAttributes.Builder()
+                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                        .setMinMargins(PrintAttributes.Margins(0, 0, 0, 0))
+                        .build()
+                )
+            }.onFailure {
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.pdf_failed)) }
+            }
+        }, 420L)
     }
 
     DisposableEffect(bridge) {
@@ -359,7 +495,8 @@ fun ViewerScreen(
                         super.onPageFinished(view, url)
                         view.evaluateJavascript(
                             "window.SVGViewer && (window.SVGViewer.fit()," +
-                                " window.SVGViewer.setSpeed(${settings.playbackSpeed}));",
+                                " window.SVGViewer.setSpeed(${settings.playbackSpeed})," +
+                                " window.SVGViewer.setInvert($inverted));",
                             null
                         )
                     }
@@ -439,9 +576,12 @@ fun ViewerScreen(
                 tint = scheme.onSurfaceVariant
             )
             IconAction(
-                icon = AppIcons.Info,
-                contentDescription = stringResource(R.string.viewer_cd_info),
-                onClick = { showInfo = true },
+                icon = AppIcons.More,
+                contentDescription = stringResource(R.string.viewer_cd_tools),
+                onClick = {
+                    haptics.click()
+                    showTools = true
+                },
                 tint = scheme.onSurfaceVariant
             )
             IconAction(
@@ -594,6 +734,138 @@ fun ViewerScreen(
         }
     }
 
+    if (showTools) {
+        ModalBottomSheet(
+            onDismissRequest = { showTools = false },
+            sheetState = toolsSheetState,
+            containerColor = scheme.surface
+        ) {
+            ToolsSheet(
+                inverted = inverted,
+                onInvert = {
+                    inverted = !inverted
+                    js("window.SVGViewer && window.SVGViewer.setInvert($inverted)")
+                },
+                onInfo = {
+                    showTools = false
+                    showInfo = true
+                },
+                onCopy = {
+                    showTools = false
+                    copyCode()
+                },
+                onIconSet = {
+                    showTools = false
+                    showIconSet = true
+                },
+                onOptimize = {
+                    showTools = false
+                    showOptimize = true
+                },
+                onPalette = {
+                    showTools = false
+                    showPalette = true
+                },
+                onPrint = {
+                    showTools = false
+                    printDocument()
+                }
+            )
+        }
+    }
+
+    if (showIconSet) {
+        ModalBottomSheet(
+            onDismissRequest = { showIconSet = false },
+            sheetState = iconSheetState,
+            containerColor = scheme.surface
+        ) {
+            IconSetSheet(
+                onExport = { sizes, background, padding ->
+                    showIconSet = false
+                    val base = ImageSaver.sanitize(document.name)
+                    runJobs(
+                        sizes.map { size ->
+                            ExportJob(
+                                width = size,
+                                height = size,
+                                background = background,
+                                padding = padding,
+                                format = ExportFormat.PNG,
+                                quality = 100f,
+                                album = "SVG Viewer/${base}_icons",
+                                fileName = { w, _ -> "${base}_$w.png" }
+                            )
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    if (showPalette) {
+        val swatches = remember(document.markup) { SvgPalette.extract(document.markup) }
+        ModalBottomSheet(
+            onDismissRequest = { showPalette = false },
+            sheetState = paletteSheetState,
+            containerColor = scheme.surface
+        ) {
+            PaletteSheet(
+                swatches = swatches,
+                onCopy = { hex ->
+                    clipboard.setText(AnnotatedString(hex))
+                    haptics.success()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.palette_copied, hex)) }
+                }
+            )
+        }
+    }
+
+    if (showOptimize) {
+        val optimized = remember(document.markup) { SvgOptimizer.optimize(document.markup) }
+        ModalBottomSheet(
+            onDismissRequest = { showOptimize = false },
+            sheetState = optimizeSheetState,
+            containerColor = scheme.surface
+        ) {
+            OptimizeSheet(
+                result = optimized,
+                onCopy = {
+                    clipboard.setText(AnnotatedString(optimized.markup))
+                    haptics.success()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.info_code_copied)) }
+                },
+                onSave = {
+                    scope.launch {
+                        val outcome = withContext(Dispatchers.IO) {
+                            runCatching {
+                                ImageSaver.saveText(
+                                    context = context,
+                                    text = optimized.markup,
+                                    fileName = "${ImageSaver.sanitize(document.name)}_optimized.svg",
+                                    mime = "image/svg+xml"
+                                )
+                            }
+                        }
+                        outcome.onSuccess {
+                            haptics.success()
+                            showOptimize = false
+                            snackbar.showSnackbar(context.getString(R.string.optimize_saved_ok))
+                        }.onFailure { error ->
+                            haptics.warning()
+                            snackbar.showSnackbar(
+                                context.getString(
+                                    R.string.export_failed,
+                                    error.message ?: context.getString(R.string.error_generic)
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    }
+
     if (showExportSheet) {
         ModalBottomSheet(
             onDismissRequest = { showExportSheet = false },
@@ -608,6 +880,10 @@ fun ViewerScreen(
                 lockAspect = lockAspect,
                 paddingPercent = exportPad,
                 onPadding = { exportPad = it },
+                format = exportFormat,
+                quality = exportQuality,
+                onFormat = { exportFormat = it },
+                onQuality = { exportQuality = it },
                 onWidth = { value ->
                     exportW = value
                     if (lockAspect) exportH = (value / aspect).roundToInt().coerceIn(MIN_SIDE, MAX_SIDE)
@@ -654,12 +930,8 @@ fun ViewerScreen(
         InfoDialog(
             document = document,
             onCopy = {
-                clipboard.setText(AnnotatedString(document.markup))
-                haptics.success()
                 showInfo = false
-                scope.launch {
-                    snackbar.showSnackbar(context.getString(R.string.info_code_copied))
-                }
+                copyCode()
             },
             onDismiss = { showInfo = false }
         )
@@ -690,7 +962,15 @@ fun ViewerScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = stringResource(R.string.export_running_size, exportW, exportH),
+                        text = if (exportUi.total > 1) {
+                            stringResource(
+                                R.string.export_running_batch,
+                                exportUi.index + 1,
+                                exportUi.total
+                            )
+                        } else {
+                            stringResource(R.string.export_running_size, exportW, exportH)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant
                     )
@@ -802,6 +1082,497 @@ private fun SpeedSheet(current: Float, onPick: (Float) -> Unit) {
     }
 }
 
+/* ---------------- bảng công cụ chuyên nghiệp ---------------- */
+
+@Composable
+private fun ToolsSheet(
+    inverted: Boolean,
+    onInvert: () -> Unit,
+    onInfo: () -> Unit,
+    onCopy: () -> Unit,
+    onIconSet: () -> Unit,
+    onOptimize: () -> Unit,
+    onPalette: () -> Unit,
+    onPrint: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = stringResource(R.string.tools_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.tools_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
+
+        ToolRow(
+            icon = AppIcons.Info,
+            title = stringResource(R.string.tools_info),
+            subtitle = stringResource(R.string.tools_info_desc),
+            onClick = onInfo
+        )
+        ToolRow(
+            icon = AppIcons.Copy,
+            title = stringResource(R.string.tools_copy),
+            subtitle = stringResource(R.string.tools_copy_desc),
+            onClick = onCopy
+        )
+        ToolRow(
+            icon = AppIcons.Invert,
+            title = stringResource(R.string.tools_invert),
+            subtitle = stringResource(R.string.tools_invert_desc),
+            onClick = onInvert,
+            trailing = {
+                Switch(
+                    checked = inverted,
+                    onCheckedChange = { onInvert() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = scheme.background,
+                        checkedTrackColor = scheme.onBackground,
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = scheme.onSurfaceVariant,
+                        uncheckedTrackColor = Color.Transparent,
+                        uncheckedBorderColor = scheme.outline
+                    )
+                )
+            }
+        )
+
+        Hairline(Modifier.padding(vertical = 10.dp))
+
+        ToolRow(
+            icon = AppIcons.IconSet,
+            title = stringResource(R.string.tools_iconset),
+            subtitle = stringResource(R.string.tools_iconset_desc),
+            onClick = onIconSet
+        )
+        ToolRow(
+            icon = AppIcons.Optimize,
+            title = stringResource(R.string.tools_optimize),
+            subtitle = stringResource(R.string.tools_optimize_desc),
+            onClick = onOptimize
+        )
+        ToolRow(
+            icon = AppIcons.Palette,
+            title = stringResource(R.string.tools_palette),
+            subtitle = stringResource(R.string.tools_palette_desc),
+            onClick = onPalette
+        )
+        ToolRow(
+            icon = AppIcons.Printer,
+            title = stringResource(R.string.tools_pdf),
+            subtitle = stringResource(R.string.tools_pdf_desc),
+            onClick = onPrint
+        )
+
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ToolRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    val scheme = MaterialTheme.colorScheme
+    val haptics = LocalHaptics.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 62.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .tap(role = null) {
+                haptics.click()
+                onClick()
+            }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(scheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = scheme.onSurface,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = scheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        if (trailing != null) {
+            trailing()
+        } else {
+            Icon(
+                imageVector = AppIcons.ChevronRight,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+private class IconPreset(@StringRes val titleRes: Int, val sizes: List<Int>)
+
+private val ICON_PRESETS = listOf(
+    IconPreset(R.string.iconset_android, listOf(48, 72, 96, 144, 192, 512)),
+    IconPreset(R.string.iconset_ios, listOf(20, 40, 60, 120, 180, 1024)),
+    IconPreset(R.string.iconset_web, listOf(16, 32, 48, 64, 128, 256, 512))
+)
+
+@Composable
+private fun IconSetSheet(onExport: (List<Int>, Color?, Int) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val haptics = LocalHaptics.current
+    var presetIndex by remember { mutableIntStateOf(0) }
+    var background by remember { mutableStateOf<Color?>(null) }
+    var padding by remember { mutableIntStateOf(8) }
+    val preset = ICON_PRESETS[presetIndex]
+
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = stringResource(R.string.iconset_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.iconset_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(18.dp))
+        SectionLabel(stringResource(R.string.iconset_preset))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ICON_PRESETS.forEachIndexed { index, item ->
+                val active = index == presetIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 62.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (active) scheme.onBackground else Color.Transparent)
+                        .border(
+                            width = 1.dp,
+                            color = if (active) Color.Transparent else scheme.outline,
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .tap(role = null) {
+                            haptics.selection()
+                            presetIndex = index
+                        }
+                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(item.titleRes),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (active) scheme.background else scheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.iconset_count, item.sizes.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (active) scheme.background.copy(alpha = 0.7f)
+                            else scheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        SectionLabel(stringResource(R.string.export_background))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BackgroundOption(
+                label = stringResource(R.string.export_bg_transparent),
+                selected = background == null,
+                swatch = null,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    haptics.selection()
+                    background = null
+                }
+            )
+            BackgroundOption(
+                label = stringResource(R.string.iconset_bg_white),
+                selected = background == Color.White,
+                swatch = Color.White,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    haptics.selection()
+                    background = Color.White
+                }
+            )
+            BackgroundOption(
+                label = stringResource(R.string.iconset_bg_black),
+                selected = background == Color.Black,
+                swatch = Color.Black,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    haptics.selection()
+                    background = Color.Black
+                }
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+        SectionLabel(stringResource(R.string.export_padding))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0, 8, 16).forEach { percent ->
+                ChoicePill(
+                    text = if (percent == 0) stringResource(R.string.export_padding_none)
+                    else stringResource(R.string.export_padding_value, percent),
+                    selected = padding == percent,
+                    onClick = { padding = percent },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        PrimaryAction(
+            text = stringResource(R.string.iconset_action, preset.sizes.size),
+            icon = AppIcons.Download,
+            onClick = { onExport(preset.sizes, background, padding) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.iconset_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun PaletteSheet(swatches: List<SvgPalette.Swatch>, onCopy: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val haptics = LocalHaptics.current
+
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = stringResource(R.string.palette_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.palette_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(18.dp))
+
+        if (swatches.isEmpty()) {
+            Text(
+                text = stringResource(R.string.palette_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant
+            )
+        } else {
+            swatches.chunked(4).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { swatch ->
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .tap(role = null) {
+                                    haptics.selection()
+                                    onCopy(swatch.hex)
+                                }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(colorOf(swatch.hex))
+                                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(10.dp))
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = swatch.hex.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = scheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun OptimizeSheet(
+    result: SvgOptimizer.Result,
+    onCopy: () -> Unit,
+    onSave: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = stringResource(R.string.optimize_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.optimize_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(18.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatCard(
+                label = stringResource(R.string.optimize_before),
+                value = formatBytes(result.before),
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                label = stringResource(R.string.optimize_after),
+                value = formatBytes(result.after),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = if (result.changed) {
+                stringResource(R.string.optimize_saved, result.percent)
+            } else {
+                stringResource(R.string.optimize_no_change)
+            },
+            style = MaterialTheme.typography.titleMedium,
+            color = scheme.onSurface
+        )
+
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SecondaryAction(
+                text = stringResource(R.string.optimize_copy),
+                icon = AppIcons.Copy,
+                onClick = onCopy,
+                modifier = Modifier.weight(1f)
+            )
+            PrimaryAction(
+                text = stringResource(R.string.optimize_save),
+                icon = AppIcons.Download,
+                onClick = onSave,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.optimize_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(scheme.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = scheme.onSurface
+        )
+    }
+}
+
+private fun colorOf(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
+
+private fun formatBytes(bytes: Int): String = when {
+    bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.2f MB", bytes / 1048576.0)
+    bytes >= 1024 -> String.format(java.util.Locale.US, "%.1f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}
+
 @Composable
 private fun ExportSheet(
     document: SvgDocument,
@@ -810,12 +1581,16 @@ private fun ExportSheet(
     background: Color?,
     lockAspect: Boolean,
     paddingPercent: Int,
+    format: ExportFormat,
+    quality: Int,
     onWidth: (Int) -> Unit,
     onHeight: (Int) -> Unit,
     onPreset: (Int) -> Unit,
     onLockChange: (Boolean) -> Unit,
     onBackground: (Color?) -> Unit,
     onPadding: (Int) -> Unit,
+    onFormat: (ExportFormat) -> Unit,
+    onQuality: (Int) -> Unit,
     onPickColor: () -> Unit,
     onExport: () -> Unit
 ) {
@@ -942,6 +1717,47 @@ private fun ExportSheet(
             style = MaterialTheme.typography.labelSmall,
             color = if (valid) scheme.onSurfaceVariant else scheme.error
         )
+
+        Spacer(Modifier.height(18.dp))
+        SectionLabel(stringResource(R.string.export_format))
+        Spacer(Modifier.height(10.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExportFormat.entries.forEach { item ->
+                ChoicePill(
+                    text = stringResource(
+                        when (item) {
+                            ExportFormat.PNG -> R.string.export_format_png
+                            ExportFormat.WEBP -> R.string.export_format_webp
+                            ExportFormat.JPEG -> R.string.export_format_jpeg
+                        }
+                    ),
+                    selected = format == item,
+                    onClick = { onFormat(item) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        if (format != ExportFormat.PNG) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.export_quality, quality),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(70, 85, 92, 100).forEach { value ->
+                    ChoicePill(
+                        text = "$value%",
+                        selected = quality == value,
+                        onClick = { onQuality(value) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
 
         Spacer(Modifier.height(18.dp))
         SectionLabel(stringResource(R.string.export_background))

@@ -172,4 +172,63 @@
     <string name="sample_waves_desc">Biến đổi đường cong</string>
     <string name="sample_pulse">Lưới nhịp</string>
     <string name="sample_pulse_desc">CSS keyframes</string>
+    <!-- Công cụ chuyên nghiệp -->
+    <string name="viewer_cd_tools">Công cụ chuyên nghiệp</string>
+    <string name="tools_title">Công cụ chuyên nghiệp</string>
+    <string name="tools_subtitle">Đủ thứ để bàn giao tệp, không chỉ để xem.</string>
+    <string name="tools_info">Thông tin tệp</string>
+    <string name="tools_info_desc">ViewBox, kích thước, số phần tử, nguồn</string>
+    <string name="tools_copy">Sao chép mã SVG</string>
+    <string name="tools_copy_desc">Đưa toàn bộ markup vào clipboard</string>
+    <string name="tools_invert">Đảo màu</string>
+    <string name="tools_invert_desc">Xem hình vẽ tối trên nền tối</string>
+    <string name="tools_iconset">Bộ icon</string>
+    <string name="tools_iconset_desc">Xuất một lượt mọi cỡ launcher, iOS và web</string>
+    <string name="tools_optimize">Tối ưu SVG</string>
+    <string name="tools_optimize_desc">Bỏ comment, metadata và số lẻ thừa</string>
+    <string name="tools_palette">Bảng màu</string>
+    <string name="tools_palette_desc">Bóc toàn bộ màu dùng trong hình</string>
+    <string name="tools_pdf">In / Lưu PDF</string>
+    <string name="tools_pdf_desc">Xuất vector qua hộp thoại in của hệ thống</string>
+    <string name="pdf_failed">Không mở được hộp thoại in</string>
+
+    <!-- Bộ icon -->
+    <string name="iconset_title">Bộ icon</string>
+    <string name="iconset_subtitle">Một lần chạm là xuất cả bộ, đặt tên sẵn và gom vào một thư mục.</string>
+    <string name="iconset_preset">Bộ kích thước</string>
+    <string name="iconset_count">%1$d tệp</string>
+    <string name="iconset_android">Android</string>
+    <string name="iconset_ios">iOS</string>
+    <string name="iconset_web">Web</string>
+    <string name="iconset_bg_white">Trắng</string>
+    <string name="iconset_bg_black">Đen</string>
+    <string name="iconset_action">Xuất %1$d tệp</string>
+    <string name="iconset_hint">Lưu vào Pictures/SVG Viewer/&lt;tên&gt;_icons</string>
+    <string name="iconset_done">Đã lưu %1$d ảnh</string>
+
+    <!-- Bảng màu -->
+    <string name="palette_title">Bảng màu</string>
+    <string name="palette_subtitle">Chạm vào ô màu để chép mã HEX.</string>
+    <string name="palette_empty">Hình này không có giá trị màu nào để đọc.</string>
+    <string name="palette_copied">Đã chép %1$s</string>
+
+    <!-- Tối ưu -->
+    <string name="optimize_title">Tối ưu SVG</string>
+    <string name="optimize_subtitle">Vẫn hình đó, ít markup hơn.</string>
+    <string name="optimize_before">Trước</string>
+    <string name="optimize_after">Sau</string>
+    <string name="optimize_saved">Giảm %1$d%% dung lượng</string>
+    <string name="optimize_no_change">Đã gọn sẵn — không còn gì để bỏ</string>
+    <string name="optimize_copy">Sao chép</string>
+    <string name="optimize_save">Lưu .svg</string>
+    <string name="optimize_hint">Lưu vào Download/SVG Viewer. Phần script được giữ nguyên.</string>
+    <string name="optimize_saved_ok">Đã lưu SVG tối ưu</string>
+
+    <!-- Định dạng xuất -->
+    <string name="export_format">Định dạng</string>
+    <string name="export_format_png">PNG</string>
+    <string name="export_format_webp">WebP</string>
+    <string name="export_format_jpeg">JPEG</string>
+    <string name="export_quality">Chất lượng · %1$d%%</string>
+    <string name="export_running_batch">%1$d / %2$d</string>
 </resources>
