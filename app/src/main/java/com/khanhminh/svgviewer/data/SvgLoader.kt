@@ -62,6 +62,9 @@ object SvgLoader {
         origin: SvgDocument.Origin
     ): SvgDocument {
         val markup = sanitize(rawMarkup)
+        if (!markup.contains("<svg", ignoreCase = true)) {
+            throw IOException("Tệp này không chứa nội dung SVG")
+        }
         val viewBox = VIEWBOX.find(markup)?.groupValues?.get(1)?.trim()
         val w = WIDTH.find(markup)?.groupValues?.get(1)?.toFloatOrNull()
         val h = HEIGHT.find(markup)?.groupValues?.get(1)?.toFloatOrNull()

@@ -2,7 +2,6 @@ package com.khanhminh.svgviewer.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,37 +19,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.khanhminh.svgviewer.data.RecentFile
 import com.khanhminh.svgviewer.data.ThemeMode
-import com.khanhminh.svgviewer.ui.theme.LocalAccent
+import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
+import com.khanhminh.svgviewer.ui.theme.AppIcons
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -68,7 +53,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
-    val accent = LocalAccent.current
+    val haptics = LocalHaptics.current
 
     AppBackground {
         Column(
@@ -78,50 +63,80 @@ fun HomeScreen(
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp)
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
+            // Đầu trang: wordmark + hành động nhanh
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppLogo(size = 38.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "SVG Viewer",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = scheme.onBackground
-                    )
-                    Text(
-                        text = "Vector · Motion · Export",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onToggleTheme) {
-                    Icon(
-                        imageVector = if (themeMode == ThemeMode.DARK) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                        contentDescription = "Đổi giao diện",
-                        tint = scheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = "Cài đặt",
-                        tint = scheme.onSurfaceVariant
-                    )
-                }
+                AppLogo(size = 22.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "SVG VIEWER",
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
+                    color = scheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                IconAction(
+                    icon = if (themeMode == ThemeMode.DARK) AppIcons.Sun else AppIcons.Moon,
+                    contentDescription = if (themeMode == ThemeMode.DARK)
+                        "Chuyển sang giao diện sáng" else "Chuyển sang giao diện tối",
+                    onClick = onToggleTheme,
+                    tint = scheme.onSurfaceVariant
+                )
+                IconAction(
+                    icon = AppIcons.Gear,
+                    contentDescription = "Cài đặt",
+                    onClick = onOpenSettings,
+                    tint = scheme.onSurfaceVariant
+                )
             }
-
-            Spacer(Modifier.height(18.dp))
-
-            HeroCard(onOpenFile = onOpenFile, onPaste = onPaste)
 
             Spacer(Modifier.height(26.dp))
 
-            SectionHeader(
-                title = "Mẫu có chuyển động",
-                subtitle = "Chạm để xem animation thật"
+            Text(
+                text = "Vector sống động.\nẢnh xuất tới 8K.",
+                style = MaterialTheme.typography.displaySmall,
+                color = scheme.onBackground
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                text = "Xem SMIL và CSS animation, zoom mượt, xuất PNG nền trong suốt.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            PrimaryAction(
+                text = "Mở tệp SVG",
+                icon = AppIcons.FolderOpen,
+                onClick = onOpenFile,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            SecondaryAction(
+                text = "Dán mã SVG",
+                icon = AppIcons.Clipboard,
+                onClick = onPaste,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(26.dp))
+            Hairline()
+            SpecStrip()
+            Hairline()
+
+            Spacer(Modifier.height(26.dp))
+
+            SectionLabel(
+                text = "Mẫu có chuyển động",
+                trailing = "${SampleSvgs.size} mẫu"
             )
             Spacer(Modifier.height(12.dp))
+
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(end = 4.dp)
@@ -131,208 +146,123 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.height(28.dp))
 
-            SectionHeader(
-                title = "Gần đây",
-                subtitle = if (recents.isEmpty()) "Chưa có tệp nào" else "${recents.size} tệp",
-                action = if (recents.isEmpty()) null else {
-                    { TextButton(onClick = onClearRecents) { Text("Xoá hết") } }
-                }
+            SectionLabel(
+                text = "Gần đây",
+                trailing = if (recents.isEmpty()) null else "${recents.size} tệp"
             )
+            Spacer(Modifier.height(6.dp))
 
             if (recents.isEmpty()) {
                 EmptyRecents()
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    recents.forEach { recent ->
+                Column {
+                    recents.forEachIndexed { index, recent ->
+                        if (index > 0) {
+                            Hairline(Modifier.padding(start = 56.dp))
+                        }
                         RecentRow(
                             recent = recent,
                             onClick = { onOpenRecent(recent) },
                             onRemove = { onRemoveRecent(recent) }
                         )
                     }
+                    Hairline()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .tap(role = null) {
+                                haptics.warning()
+                                onClearRecents()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Xoá danh sách gần đây",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(26.dp))
 
-            TipCard()
+            TipBlock()
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(36.dp))
         }
     }
 }
 
+/** Dải thông số mảnh, chia bằng hairline dọc. */
 @Composable
-private fun HeroCard(onOpenFile: () -> Unit, onPaste: () -> Unit) {
-    val accent = LocalAccent.current
-    Box(
+private fun SpecStrip() {
+    val scheme = MaterialTheme.colorScheme
+    val items = listOf("SMIL · CSS", "1080p · 4K · 8K", "PNG alpha")
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        accent.indigo,
-                        accent.violet,
-                        accent.cyan.copy(alpha = 0.85f)
-                    )
-                )
-            )
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(238.dp)
-        ) {
-            // quầng sáng trang trí
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 12.dp)
-                    .size(120.dp)
-                    .background(Color.White.copy(alpha = 0.10f), CircleShape)
-            )
-            Column(Modifier.padding(22.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "TRÌNH XEM VECTOR",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "SVG sống động,\nxuất ảnh tới 8K",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
-                    lineHeight = MaterialTheme.typography.headlineMedium.lineHeight
+        items.forEachIndexed { index, item ->
+            if (index > 0) {
+                Box(
+                    Modifier
+                        .height(14.dp)
+                        .width(1.dp)
+                        .background(scheme.outlineVariant)
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Hỗ trợ SMIL & CSS animation, zoom mượt, nền trong suốt.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.86f)
-                )
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White)
-                            .clickable(onClick = onOpenFile)
-                            .padding(horizontal = 18.dp, vertical = 12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
-                                contentDescription = null,
-                                tint = accent.indigo,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "Mở tệp SVG",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = accent.indigo
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.16f))
-                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                            .clickable(onClick = onPaste)
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.ContentPaste,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "Dán mã",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
             }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(
-    title: String,
-    subtitle: String,
-    action: (@Composable () -> Unit)? = null
-) {
-    val scheme = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onBackground
-            )
-            Text(
-                text = subtitle,
+                text = item,
                 style = MaterialTheme.typography.labelSmall,
-                color = scheme.onSurfaceVariant
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
-        action?.invoke()
     }
 }
 
 @Composable
 private fun SampleCard(sample: SampleSvg, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = LocalHaptics.current
+
     Column(
         modifier = Modifier
-            .width(132.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(scheme.surface)
-            .border(1.dp, scheme.outlineVariant, RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .padding(10.dp)
+            .width(150.dp)
+            .tap(role = null) {
+                haptics.click()
+                onClick()
+            }
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(78.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Brush.linearGradient(sample.colors))
+                .height(96.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(scheme.surfaceContainerHigh)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(18.dp)),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
+                imageVector = sample.icon,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(28.dp)
+                tint = scheme.onSurface,
+                modifier = Modifier.size(30.dp)
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             text = sample.title,
-            style = MaterialTheme.typography.labelLarge,
-            color = scheme.onSurface,
+            style = MaterialTheme.typography.titleSmall,
+            color = scheme.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -349,40 +279,37 @@ private fun SampleCard(sample: SampleSvg, onClick: () -> Unit) {
 @Composable
 private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val accent = LocalAccent.current
+    val haptics = LocalHaptics.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(scheme.surface)
-            .border(1.dp, scheme.outlineVariant, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .heightIn(min = 64.dp)
+            .tap(role = null) {
+                haptics.click()
+                onClick()
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(accent.violet.copy(alpha = 0.22f), accent.cyan.copy(alpha = 0.18f))
-                    )
-                ),
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(scheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Image,
+                imageVector = AppIcons.FileSvg,
                 contentDescription = null,
-                tint = accent.violet,
-                modifier = Modifier.size(20.dp)
+                tint = scheme.onSurface,
+                modifier = Modifier.size(19.dp)
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = recent.name,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -393,14 +320,15 @@ private fun RecentRow(recent: RecentFile, onClick: () -> Unit, onRemove: () -> U
                 color = scheme.onSurfaceVariant
             )
         }
-        IconButton(onClick = onRemove, modifier = Modifier.size(34.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.Close,
-                contentDescription = "Xoá khỏi danh sách",
-                tint = scheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        IconAction(
+            icon = AppIcons.Close,
+            contentDescription = "Xoá ${recent.name} khỏi danh sách",
+            onClick = {
+                haptics.warning()
+                onRemove()
+            },
+            tint = scheme.onSurfaceVariant
+        )
     }
 }
 
@@ -410,20 +338,18 @@ private fun EmptyRecents() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(scheme.surfaceVariant.copy(alpha = 0.5f))
-            .padding(horizontal = 16.dp, vertical = 18.dp),
+            .padding(vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Rounded.History,
+            imageVector = AppIcons.History,
             contentDescription = null,
             tint = scheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Text(
-            text = "Các tệp bạn mở sẽ được ghim ở đây để mở lại nhanh.",
+            text = "Tệp bạn mở sẽ được ghim ở đây để mở lại nhanh.",
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurfaceVariant
         )
@@ -431,36 +357,28 @@ private fun EmptyRecents() {
 }
 
 @Composable
-private fun TipCard() {
+private fun TipBlock() {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(scheme.surface)
-            .border(1.dp, scheme.outlineVariant, RoundedCornerShape(18.dp))
+            .background(scheme.surfaceContainer)
             .padding(16.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.Tune,
+            imageVector = AppIcons.Info,
             contentDescription = null,
-            tint = scheme.primary,
-            modifier = Modifier.size(20.dp)
+            tint = scheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
         )
         Spacer(Modifier.width(12.dp))
-        Column {
-            Text(
-                text = "Mẹo sử dụng",
-                style = MaterialTheme.typography.labelLarge,
-                color = scheme.onSurface
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Chạm 2 lần để phóng to · Kéo 2 ngón để zoom · Giữ 1 ngón để di chuyển · Xuất PNG trong màn hình xem.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = "Chạm 2 lần để phóng to, kéo 2 ngón để zoom, giữ 1 ngón để di chuyển. " +
+                "Chia sẻ tệp SVG từ app khác và chọn SVG Viewer để mở ngay tại đây.",
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
     }
 }
 

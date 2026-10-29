@@ -9,13 +9,10 @@ import android.os.Build
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,27 +26,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.FitScreen
-import androidx.compose.material.icons.rounded.GridOn
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.IosShare
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay
-import androidx.compose.material.icons.rounded.ZoomIn
-import androidx.compose.material.icons.rounded.ZoomOut
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -58,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -72,10 +54,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,7 +68,8 @@ import com.khanhminh.svgviewer.render.ExportSession
 import com.khanhminh.svgviewer.render.HtmlComposer
 import com.khanhminh.svgviewer.render.ImageSaver
 import com.khanhminh.svgviewer.render.SvgBridge
-import com.khanhminh.svgviewer.ui.theme.LocalAccent
+import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
+import com.khanhminh.svgviewer.ui.theme.AppIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,7 +100,7 @@ fun ViewerScreen(
     val snackbar = remember { SnackbarHostState() }
     val bridge = remember { SvgBridge() }
     val holder = remember { WebViewHolder() }
-    val accent = LocalAccent.current
+    val haptics = LocalHaptics.current
     val scheme = MaterialTheme.colorScheme
     val html = remember(document.markup) { HtmlComposer.compose(context, document.markup) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -132,6 +113,7 @@ fun ViewerScreen(
     var preset by remember { mutableStateOf(ExportPreset.UHD) }
     var transparent by remember { mutableStateOf(false) }
     var pendingExport by remember { mutableStateOf<Pair<ExportPreset, Boolean>?>(null) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     val activeSession = remember { mutableStateOf<ExportSession?>(null) }
 
     fun js(code: String) {
@@ -159,6 +141,7 @@ fun ViewerScreen(
                 tmp.delete()
                 exportUi = ExportUi()
                 saved.onSuccess { uri ->
+                    haptics.success()
                     val result = snackbar.showSnackbar(
                         message = "Đã lưu PNG ${w} × ${h} vào Thư viện ảnh",
                         actionLabel = "Chia sẻ",
@@ -166,6 +149,7 @@ fun ViewerScreen(
                     )
                     if (result == SnackbarResult.ActionPerformed) shareImage(context, uri)
                 }.onFailure { error ->
+                    haptics.warning()
                     snackbar.showSnackbar("Không lưu được ảnh: ${error.message ?: "lỗi không xác định"}")
                 }
             }
@@ -217,13 +201,17 @@ fun ViewerScreen(
         }
     }
 
-    BackHandler { onBack() }
+    PredictiveBack(enabled = true, onBack = onBack, onProgress = { backProgress = it })
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .predictiveBackVisual(backProgress)
+    ) {
         when (settings.background) {
             CanvasBackground.CHECKER -> Checkerboard(Modifier.fillMaxSize())
-            CanvasBackground.LIGHT -> SolidCanvas(Color(0xFFFDFDFF), Modifier.fillMaxSize())
-            CanvasBackground.DARK -> SolidCanvas(Color(0xFF0A0A10), Modifier.fillMaxSize())
+            CanvasBackground.LIGHT -> Box(Modifier.fillMaxSize().background(Color.White))
+            CanvasBackground.DARK -> Box(Modifier.fillMaxSize().background(Color(0xFF0B0B0B)))
         }
 
         AndroidView(
@@ -269,19 +257,21 @@ fun ViewerScreen(
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 10.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(scheme.surface.copy(alpha = 0.92f))
-                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(22.dp))
+                .background(scheme.surface.copy(alpha = 0.94f))
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(22.dp))
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Rounded.ArrowBack, contentDescription = "Quay lại", tint = scheme.onSurface)
-            }
+            IconAction(
+                icon = AppIcons.Back,
+                contentDescription = "Quay lại",
+                onClick = onBack
+            )
             Column(Modifier.weight(1f)) {
                 Text(
                     text = document.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = scheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -294,24 +284,36 @@ fun ViewerScreen(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = { showInfo = true }) {
-                Icon(Icons.Rounded.Info, contentDescription = "Thông tin", tint = scheme.onSurfaceVariant)
-            }
-            IconButton(
-                onClick = { showExportSheet = true },
-                modifier = Modifier
-                    .padding(end = 4.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(accent.violet, accent.cyan)))
-            ) {
-                Icon(
-                    Icons.Rounded.IosShare,
-                    contentDescription = "Xuất ảnh",
-                    tint = Color.White,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
+            IconAction(
+                icon = if (settings.background == CanvasBackground.CHECKER) AppIcons.Checker else AppIcons.Grid,
+                contentDescription = "Đổi nền canvas",
+                onClick = {
+                    haptics.selection()
+                    settings.updateBackground(
+                        when (settings.background) {
+                            CanvasBackground.CHECKER -> CanvasBackground.LIGHT
+                            CanvasBackground.LIGHT -> CanvasBackground.DARK
+                            CanvasBackground.DARK -> CanvasBackground.CHECKER
+                        }
+                    )
+                },
+                tint = scheme.onSurfaceVariant
+            )
+            IconAction(
+                icon = AppIcons.Info,
+                contentDescription = "Thông tin tệp",
+                onClick = { showInfo = true },
+                tint = scheme.onSurfaceVariant
+            )
+            IconAction(
+                icon = AppIcons.Export,
+                contentDescription = "Xuất ảnh PNG",
+                onClick = {
+                    haptics.impact()
+                    showExportSheet = true
+                },
+                filled = true
+            )
         }
 
         // Dock dưới
@@ -320,74 +322,71 @@ fun ViewerScreen(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = 18.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(scheme.surface.copy(alpha = 0.94f))
-                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .clip(RoundedCornerShape(26.dp))
+                .background(scheme.surface.copy(alpha = 0.95f))
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(26.dp))
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            IconButton(onClick = { js("window.SVGViewer.fit()") }) {
-                Icon(Icons.Rounded.FitScreen, contentDescription = "Vừa khung", tint = scheme.onSurfaceVariant)
-            }
-            IconButton(onClick = { js("window.SVGViewer.zoomBy(0.8)") }) {
-                Icon(Icons.Rounded.ZoomOut, contentDescription = "Thu nhỏ", tint = scheme.onSurfaceVariant)
-            }
+            IconAction(
+                icon = AppIcons.Fit,
+                contentDescription = "Vừa khung",
+                onClick = { js("window.SVGViewer.fit()") },
+                tint = scheme.onSurfaceVariant
+            )
+            IconAction(
+                icon = AppIcons.ZoomOut,
+                contentDescription = "Thu nhỏ",
+                onClick = { js("window.SVGViewer.zoomBy(0.8)") },
+                tint = scheme.onSurfaceVariant
+            )
             Box(
                 modifier = Modifier
-                    .width(54.dp)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { js("window.SVGViewer.actualSize()") },
+                    .width(56.dp)
+                    .height(48.dp)
+                    .tap(role = null) {
+                        haptics.tick()
+                        js("window.SVGViewer.actualSize()")
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "${(zoom * 100).roundToInt()}%",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.primary,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurface,
                     textAlign = TextAlign.Center
                 )
             }
-            IconButton(onClick = { js("window.SVGViewer.zoomBy(1.25)") }) {
-                Icon(Icons.Rounded.ZoomIn, contentDescription = "Phóng to", tint = scheme.onSurfaceVariant)
-            }
-            HorizontalDivider(
-                modifier = Modifier
-                    .height(22.dp)
-                    .width(1.dp),
-                color = scheme.outlineVariant
+            IconAction(
+                icon = AppIcons.ZoomIn,
+                contentDescription = "Phóng to",
+                onClick = { js("window.SVGViewer.zoomBy(1.25)") },
+                tint = scheme.onSurfaceVariant
             )
-            IconButton(
+            Box(
+                Modifier
+                    .height(22.dp)
+                    .width(1.dp)
+                    .background(scheme.outlineVariant)
+            )
+            IconAction(
+                icon = if (paused) AppIcons.Play else AppIcons.Pause,
+                contentDescription = if (paused) "Phát chuyển động" else "Tạm dừng chuyển động",
                 onClick = {
                     paused = !paused
                     js("window.SVGViewer.setPaused($paused)")
                 }
-            ) {
-                Icon(
-                    imageVector = if (paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                    contentDescription = if (paused) "Phát" else "Tạm dừng",
-                    tint = scheme.onSurface
-                )
-            }
-            IconButton(onClick = { js("window.SVGViewer.restart()"); paused = false }) {
-                Icon(Icons.Rounded.Replay, contentDescription = "Chạy lại", tint = scheme.onSurfaceVariant)
-            }
-            IconButton(onClick = {
-                settings.updateBackground(
-                    when (settings.background) {
-                        CanvasBackground.CHECKER -> CanvasBackground.LIGHT
-                        CanvasBackground.LIGHT -> CanvasBackground.DARK
-                        CanvasBackground.DARK -> CanvasBackground.CHECKER
-                    }
-                )
-            }) {
-                Icon(
-                    imageVector = if (settings.background == CanvasBackground.CHECKER) Icons.Rounded.GridOn else Icons.Rounded.LightMode,
-                    contentDescription = "Đổi nền",
-                    tint = scheme.onSurfaceVariant
-                )
-            }
+            )
+            IconAction(
+                icon = AppIcons.Replay,
+                contentDescription = "Chạy lại từ đầu",
+                onClick = {
+                    js("window.SVGViewer.restart()")
+                    paused = false
+                },
+                tint = scheme.onSurfaceVariant
+            )
         }
 
         SnackbarHost(
@@ -395,7 +394,7 @@ fun ViewerScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 90.dp, start = 16.dp, end = 16.dp)
+                .padding(bottom = 92.dp, start = 16.dp, end = 16.dp)
         )
     }
 
@@ -427,8 +426,7 @@ fun ViewerScreen(
         Dialog(onDismissRequest = { }) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
-                color = scheme.surface,
-                tonalElevation = 6.dp
+                color = scheme.surface
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -436,9 +434,10 @@ fun ViewerScreen(
                 ) {
                     CircularProgressIndicator(
                         progress = { if (exportUi.progress <= 0) 0.05f else exportUi.progress / 100f },
-                        modifier = Modifier.size(46.dp),
-                        color = accent.violet,
-                        trackColor = scheme.surfaceVariant
+                        modifier = Modifier.size(44.dp),
+                        color = scheme.onSurface,
+                        trackColor = scheme.surfaceContainerHighest,
+                        strokeWidth = 3.dp
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
@@ -446,18 +445,19 @@ fun ViewerScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = scheme.onSurface
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "${preset.label} · ${outputSize(document.aspect, preset.longEdge).let { "${it.first} × ${it.second}" }}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "${preset.label} · " + outputSize(document.aspect, preset.longEdge)
+                            .let { "${it.first} × ${it.second}" },
+                        style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(16.dp))
                     LinearProgressIndicator(
                         progress = { if (exportUi.progress <= 0) 0.05f else exportUi.progress / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = accent.cyan,
-                        trackColor = scheme.surfaceVariant
+                        color = scheme.onSurface,
+                        trackColor = scheme.surfaceContainerHighest
                     )
                 }
             }
@@ -475,9 +475,9 @@ private fun ExportSheet(
     onExport: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
-    val accent = LocalAccent.current
+    val haptics = LocalHaptics.current
 
-    Column(Modifier.padding(horizontal = 22.dp)) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
         Text(
             text = "Xuất ảnh PNG",
             style = MaterialTheme.typography.titleLarge,
@@ -486,125 +486,112 @@ private fun ExportSheet(
         Spacer(Modifier.height(4.dp))
         Text(
             text = "Khung nhìn ${document.dimensionLabel} · giữ nguyên tỉ lệ gốc",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant
         )
         Spacer(Modifier.height(18.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ExportPreset.entries.forEach { item ->
                 val dims = outputSize(document.aspect, item.longEdge)
                 val active = item == selected
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            if (active) accent.violet.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) scheme.onBackground else Color.Transparent)
                         .border(
-                            width = if (active) 1.5.dp else 1.dp,
-                            color = if (active) accent.violet else scheme.outlineVariant,
-                            shape = RoundedCornerShape(18.dp)
+                            width = 1.dp,
+                            color = if (active) Color.Transparent else scheme.outline,
+                            shape = RoundedCornerShape(16.dp)
                         )
-                        .clickable { onSelect(item) }
-                        .padding(vertical = 14.dp, horizontal = 8.dp),
+                        .tap(role = null) {
+                            haptics.selection()
+                            onSelect(item)
+                        }
+                        .padding(vertical = 14.dp, horizontal = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = item.label,
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (active) accent.violet else scheme.onSurface
+                        color = if (active) scheme.background else scheme.onSurface
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "${dims.first}×${dims.second}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant
+                        color = if (active) scheme.background.copy(alpha = 0.7f) else scheme.onSurfaceVariant
                     )
                 }
             }
         }
 
+        Spacer(Modifier.height(20.dp))
+        Hairline()
+        SettingRow(
+            title = "Nền trong suốt",
+            subtitle = "Tắt để xuất nền trắng"
+        ) {
+            Switch(
+                checked = transparent,
+                onCheckedChange = {
+                    haptics.selection()
+                    onTransparentChange(it)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = scheme.background,
+                    checkedTrackColor = scheme.onBackground,
+                    checkedBorderColor = Color.Transparent
+                )
+            )
+        }
+        Hairline()
+
         Spacer(Modifier.height(18.dp))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(scheme.surfaceVariant.copy(alpha = 0.45f))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Nền trong suốt",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = "Tắt để có nền trắng",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-            Switch(checked = transparent, onCheckedChange = onTransparentChange)
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Button(
+        PrimaryAction(
+            text = "Xuất PNG ${selected.label}",
+            icon = AppIcons.Export,
             onClick = onExport,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = accent.violet,
-                contentColor = Color.White
-            )
-        ) {
-            Text(
-                text = "Xuất PNG ${selected.label}",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "Ảnh được lưu vào Thư viện ảnh › Pictures/SVG Viewer",
+            text = "Ảnh lưu vào Thư viện ảnh › Pictures/SVG Viewer",
             style = MaterialTheme.typography.labelSmall,
             color = scheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
 private fun InfoDialog(document: SvgDocument, onDismiss: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Đóng") }
         },
-        title = {
-            Text("Thông tin tệp", style = MaterialTheme.typography.titleLarge)
-        },
+        title = { Text("Thông tin tệp", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoRow("Tên", document.name)
                 InfoRow("Khung nhìn", document.viewBox ?: "Không khai báo")
                 InfoRow("Kích thước", document.dimensionLabel)
                 InfoRow("Dung lượng", document.sizeLabel)
-                InfoRow("Nguồn", when (document.origin) {
-                    SvgDocument.Origin.FILE -> "Tệp trên máy"
-                    SvgDocument.Origin.SAMPLE -> "Mẫu có sẵn"
-                    SvgDocument.Origin.CLIPBOARD -> "Dán từ bộ nhớ tạm"
-                })
+                InfoRow(
+                    "Nguồn",
+                    when (document.origin) {
+                        SvgDocument.Origin.FILE -> "Tệp trên máy"
+                        SvgDocument.Origin.SAMPLE -> "Mẫu có sẵn"
+                        SvgDocument.Origin.CLIPBOARD -> "Dán từ bộ nhớ tạm"
+                    }
+                )
                 InfoRow("Phần tử", "${Regex("<[a-zA-Z]").findAll(document.markup).count()} thẻ")
             }
         },
@@ -618,9 +605,9 @@ private fun InfoRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant,
-            modifier = Modifier.width(96.dp)
+            modifier = Modifier.width(92.dp)
         )
         Text(
             text = value,

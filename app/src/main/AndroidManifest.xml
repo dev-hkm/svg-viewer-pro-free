@@ -7,6 +7,7 @@
 
     <application
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -28,22 +29,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Mở tệp SVG từ trình quản lý tệp / trình duyệt -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="image/svg+xml" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
+                <data android:scheme="content" android:mimeType="image/svg+xml" />
+                <data android:scheme="file" android:mimeType="image/svg+xml" />
+                <data android:scheme="content" android:mimeType="text/xml" />
+                <data android:scheme="file" android:mimeType="text/xml" />
+                <data android:scheme="content" android:mimeType="application/xml" />
+                <data android:scheme="file" android:mimeType="application/xml" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" android:pathPattern=".*\\.svg" />
+                <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\\.svg" />
             </intent-filter>
 
+            <!-- Chia sẻ tệp từ app khác: nhận mọi định dạng rồi tự kiểm tra nội dung -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/svg+xml" />
-                <data android:mimeType="text/xml" />
-                <data android:mimeType="application/xml" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- Chia sẻ nhiều tệp cùng lúc: lấy tệp SVG đầu tiên -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
     </application>
