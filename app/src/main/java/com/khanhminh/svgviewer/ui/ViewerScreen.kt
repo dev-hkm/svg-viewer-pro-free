@@ -17,9 +17,14 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -66,8 +71,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +86,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -91,27 +99,38 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.khanhminh.svgviewer.R
 import com.khanhminh.svgviewer.data.CanvasBackground
 import com.khanhminh.svgviewer.data.SettingsStore
 import com.khanhminh.svgviewer.data.SvgDocument
+import com.khanhminh.svgviewer.data.SvgHealth
+import com.khanhminh.svgviewer.data.SvgLoader
 import com.khanhminh.svgviewer.data.SvgOptimizer
 import com.khanhminh.svgviewer.data.SvgPalette
 import com.khanhminh.svgviewer.render.ExportSession
 import com.khanhminh.svgviewer.render.HtmlComposer
 import com.khanhminh.svgviewer.render.ImageSaver
 import com.khanhminh.svgviewer.render.SvgBridge
+import com.khanhminh.svgviewer.render.SvgSharer
 import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
 import com.khanhminh.svgviewer.ui.theme.AppIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONTokener
 import java.io.File
 import kotlin.math.roundToInt
 
 private class WebViewHolder {
     var webView: WebView? = null
+
+    /** HTML đã nạp trong WebView, để không nạp lại khi chỉ vì recomposition. */
+    var loadedHtml: String? = null
 }
 
 private data class ExportUi(
@@ -151,9 +170,11 @@ fun ViewerScreen(
     document: SvgDocument,
     settings: SettingsStore,
     onThumbnail: (Uri, ByteArray) -> Unit = { _, _ -> },
+    onLightBarsChange: (Boolean?) -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val clipboard = LocalClipboardManager.current
@@ -161,7 +182,6 @@ fun ViewerScreen(
     val holder = remember { WebViewHolder() }
     val haptics = LocalHaptics.current
     val scheme = MaterialTheme.colorScheme
-    val html = remember(document.markup) { HtmlComposer.compose(context, document.markup) }
     val canvasSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val speedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -169,13 +189,23 @@ fun ViewerScreen(
     val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val paletteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val optimizeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val healthSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val snippetsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Bản đang hiển thị: tệp gốc, hoặc markup người dùng vừa sửa trong app.
+    var editedDoc by remember(document) { mutableStateOf<SvgDocument?>(null) }
+    val activeDoc = editedDoc ?: document
+    val activeMarkup = activeDoc.markup
+    val html = remember(activeMarkup) { HtmlComposer.compose(context, activeMarkup) }
+    var draft by remember(document) { mutableStateOf(document.markup) }
+    var showEditor by remember { mutableStateOf(false) }
 
     // Dock có 8 phần tử: máy hẹp thì thu nhỏ từng nút để không bị cắt mép.
     val compactDock = LocalConfiguration.current.screenWidthDp < 380
     val dockButton = if (compactDock) 42.dp else 48.dp
     val dockIcon = if (compactDock) 19.dp else 21.dp
 
-    val aspect = document.aspect?.takeIf { it > 0f } ?: 1f
+    val aspect = activeDoc.aspect?.takeIf { it > 0f } ?: 1f
 
     var zoom by remember { mutableFloatStateOf(1f) }
     var paused by remember { mutableStateOf(false) }
@@ -188,6 +218,8 @@ fun ViewerScreen(
     var showIconSet by remember { mutableStateOf(false) }
     var showPalette by remember { mutableStateOf(false) }
     var showOptimize by remember { mutableStateOf(false) }
+    var showHealth by remember { mutableStateOf(false) }
+    var showSnippets by remember { mutableStateOf(false) }
     var inverted by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(ExportFormat.PNG) }
     var exportQuality by remember { mutableIntStateOf(90) }
@@ -195,15 +227,117 @@ fun ViewerScreen(
     var backProgress by remember { mutableFloatStateOf(0f) }
     val activeSession = remember { mutableStateOf<ExportSession?>(null) }
 
+    // Chế độ soi phần tử.
+    var inspecting by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<InspectedElement?>(null) }
+
+    // Đổi màu tại chỗ. Danh sách lấy từ DOM thật nên sau mỗi lần đổi lại được
+    // đồng bộ; bộ đếm bước khớp với lịch sử hoàn tác bên trong WebView.
+    var recolorSwatches by remember(document) {
+        mutableStateOf(SvgPalette.extract(document.markup))
+    }
+    var recolorSteps by remember(document) { mutableIntStateOf(0) }
+    var pendingUndo by remember { mutableStateOf(false) }
+    var paletteTarget by remember { mutableStateOf<String?>(null) }
+
+    // Toàn màn hình: ẩn thanh hệ thống cùng thanh nổi của app, chạm để thoát.
+    var immersive by remember { mutableStateOf(false) }
+    var immersiveHint by remember { mutableStateOf(false) }
+
     val defaultSize = remember(aspect) { sizeForLongEdge(aspect, 3840) }
-    var exportW by remember(document.markup) { mutableIntStateOf(defaultSize.first) }
-    var exportH by remember(document.markup) { mutableIntStateOf(defaultSize.second) }
+    var exportW by remember(activeMarkup) { mutableIntStateOf(defaultSize.first) }
+    var exportH by remember(activeMarkup) { mutableIntStateOf(defaultSize.second) }
     var exportBg by remember { mutableStateOf<Color?>(null) }
     var exportPad by remember { mutableIntStateOf(0) }
     var lockAspect by remember { mutableStateOf(true) }
 
     fun js(code: String) {
         holder.webView?.evaluateJavascript(code, null)
+    }
+
+    /** Nhờ WebView liệt kê lại màu đang thật sự có trong DOM sau khi đổi màu. */
+    fun requestColors() {
+        js(
+            "(function(){var l=window.SVGViewer&&window.SVGViewer.collectColors();" +
+                "if(l)window.Android.colors(JSON.stringify(l));})()"
+        )
+    }
+
+    fun enterInspect() {
+        selected = null
+        inspecting = true
+        js("window.SVGViewer && window.SVGViewer.inspect(true)")
+    }
+
+    fun exitInspect() {
+        if (!inspecting) return
+        inspecting = false
+        selected = null
+        // Trả lại mọi phần tử đã bị ẩn trong lúc soi: thoát ra là bản vẽ nguyên vẹn.
+        js("window.SVGViewer && (window.SVGViewer.inspect(false), window.SVGViewer.showAllHidden())")
+    }
+
+    fun toggleElementHidden() {
+        val element = selected ?: return
+        if (element.isRoot) return
+        val path = element.path.joinToString(",")
+        js("window.SVGViewer.setHidden([$path], ${!element.hidden})")
+    }
+
+    fun copyElementCode() {
+        val web = holder.webView ?: return
+        web.evaluateJavascript(
+            "(function(){try{return window.SVGViewer?window.SVGViewer.elementCode():''}" +
+                "catch(e){return ''}})()"
+        ) { raw ->
+            val code = runCatching {
+                JSONTokener(raw).nextValue() as? String ?: ""
+            }.getOrDefault("")
+            if (code.isBlank()) {
+                haptics.warning()
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.inspector_none)) }
+            } else {
+                clipboard.setText(AnnotatedString(code))
+                haptics.success()
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.inspector_copied)) }
+            }
+        }
+    }
+
+    fun applyRecolor(from: String, to: String) {
+        js("window.SVGViewer && window.SVGViewer.recolor('$from', '$to')")
+    }
+
+    fun undoRecolor() {
+        if (recolorSteps <= 0) return
+        pendingUndo = true
+        js("window.SVGViewer && window.SVGViewer.undoRecolor()")
+    }
+
+    fun resetRecolor() {
+        if (recolorSteps <= 0) return
+        pendingUndo = false
+        js("window.SVGViewer && window.SVGViewer.resetRecolor()")
+    }
+
+    /** Áp dụng markup vừa sửa; trả về câu báo lỗi nếu không dựng lại được. */
+    fun applyEdit(text: String): String? {
+        val rebuilt = SvgLoader.recompute(document, text)
+            ?: return context.getString(R.string.editor_invalid)
+        editedDoc = rebuilt
+        draft = rebuilt.markup
+        showEditor = false
+        haptics.success()
+        return null
+    }
+
+    fun shareDocument() {
+        haptics.click()
+        val ok = SvgSharer.share(context, activeMarkup, document.name)
+        if (!ok) {
+            haptics.warning()
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.share_failed)) }
+        }
     }
 
     /**
@@ -361,11 +495,17 @@ fun ViewerScreen(
     fun reloadDocument() {
         paused = false
         zoom = 1f
+        // DOM mới sinh ra từ markup gốc nên mọi thay đổi tạm thời đều về mặc định.
+        recolorSteps = 0
+        recolorSwatches = SvgPalette.extract(activeMarkup)
+        selected = null
+        inspecting = false
+        holder.loadedHtml = html
         holder.webView?.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     }
 
     fun copyCode() {
-        clipboard.setText(AnnotatedString(document.markup))
+        clipboard.setText(AnnotatedString(activeMarkup))
         haptics.success()
         scope.launch { snackbar.showSnackbar(context.getString(R.string.info_code_copied)) }
     }
@@ -395,6 +535,10 @@ fun ViewerScreen(
         }, 420L)
     }
 
+    // Ảnh thu nhỏ luôn đại diện cho markup đang hiển thị; bản đã sửa trong app
+    // không ghi đè ảnh của tệp gốc trong danh sách gần đây.
+    val editedNow = rememberUpdatedState(editedDoc)
+
     DisposableEffect(bridge) {
         bridge.onZoom = { value -> zoom = value }
         bridge.onProgress = { percent -> exportUi = exportUi.copy(progress = percent) }
@@ -403,11 +547,42 @@ fun ViewerScreen(
             scope.launch { snackbar.showSnackbar(message) }
         }
         bridge.onReload = { reloadDocument() }
+        bridge.onTap = { if (immersive) immersive = false }
+        bridge.onInspect = { json -> parseInspect(json)?.let { selected = it } }
+        bridge.onColors = { json -> parseSwatches(json)?.let { recolorSwatches = it } }
+        bridge.onRecolor = { total, _, _ ->
+            when {
+                total > 0 -> {
+                    recolorSteps += 1
+                    pendingUndo = false
+                }
+                pendingUndo -> {
+                    recolorSteps = (recolorSteps - 1).coerceAtLeast(0)
+                    pendingUndo = false
+                }
+                else -> scope.launch {
+                    snackbar.showSnackbar(context.getString(R.string.palette_none))
+                }
+            }
+            requestColors()
+        }
+        bridge.onRecolorReset = { _ ->
+            recolorSteps = 0
+            pendingUndo = false
+            requestColors()
+        }
+        bridge.onHiddenCleared = { count ->
+            if (count > 0) {
+                scope.launch {
+                    snackbar.showSnackbar(context.getString(R.string.inspector_restored, count))
+                }
+            }
+        }
         // Ảnh thu nhỏ: chỉ chụp một lần cho tệp thật, sau khi SVG đã dựng xong
         // và ổn định vài nhịp để cảnh do JS dựng kịp hiện ra.
         bridge.onReady = { _, _ ->
             val uri = document.uri
-            if (uri != null && document.origin == SvgDocument.Origin.FILE) {
+            if (uri != null && document.origin == SvgDocument.Origin.FILE && editedNow.value == null) {
                 holder.webView?.postDelayed({
                     holder.webView?.evaluateJavascript(
                         "window.SVGViewer && window.SVGViewer.snapshot(320);",
@@ -430,13 +605,74 @@ fun ViewerScreen(
             bridge.onReload = null
             bridge.onReady = null
             bridge.onThumbnail = null
+            bridge.onTap = null
+            bridge.onInspect = null
+            bridge.onColors = null
+            bridge.onRecolor = null
+            bridge.onRecolorReset = null
+            bridge.onHiddenCleared = null
             bridge.chunkSink = null
             bridge.onExportDone = null
             bridge.onExportError = null
         }
     }
 
+    // Đổi markup thì nạp lại WebView một lần, và dọn mọi trạng thái gắn với DOM cũ.
+    LaunchedEffect(html) {
+        val web = holder.webView ?: return@LaunchedEffect
+        if (holder.loadedHtml != html) {
+            holder.loadedHtml = html
+            web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        }
+    }
+    LaunchedEffect(activeMarkup) {
+        paused = false
+        zoom = 1f
+        recolorSteps = 0
+        recolorSwatches = SvgPalette.extract(activeMarkup)
+        selected = null
+        inspecting = false
+    }
+
+    // Toàn màn hình: thanh hệ thống ẩn hẳn, vuốt mép để hiện tạm; thoát là trả lại.
+    LaunchedEffect(immersive) {
+        val window = context.findActivity()?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        if (immersive) {
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            immersiveHint = true
+            delay(3200)
+            immersiveHint = false
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            immersiveHint = false
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val window = context.findActivity()?.window
+            if (window != null) {
+                WindowCompat.getInsetsController(window, view)
+                    .show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    // Trình soạn mã phủ nền màu của theme, nên icon thanh hệ thống phải theo theme
+    // thay vì theo màu canvas phía sau khung vẽ.
+    LaunchedEffect(showEditor, scheme.background) {
+        onLightBarsChange(if (showEditor) scheme.background.isLight() else null)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onLightBarsChange(null) }
+    }
+
     PredictiveBack(enabled = true, onBack = onBack, onProgress = { backProgress = it })
+    PredictiveBack(enabled = immersive, onBack = { immersive = false })
+    PredictiveBack(enabled = inspecting, onBack = { exitInspect() })
+    PredictiveBack(enabled = showEditor, onBack = { showEditor = false })
 
     // Thanh trên trượt xuống, dock trượt lên — màn xem không còn "bật" ra tức thì.
     val barIn = remember { Animatable(0f) }
@@ -517,6 +753,7 @@ fun ViewerScreen(
                         } else null
                     }
                 }
+                holder.loadedHtml = html
                 web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
                 holder.webView = web
                 web
@@ -528,90 +765,117 @@ fun ViewerScreen(
             }
         )
 
-        // Thanh trên
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(scheme.surface.copy(alpha = 0.94f))
-                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(22.dp))
-                .padding(horizontal = 4.dp, vertical = 4.dp)
-                .graphicsLayer {
-                    alpha = barIn.value
-                    translationY = (1f - barIn.value) * -36.dp.toPx()
-                },
-            verticalAlignment = Alignment.CenterVertically
+        // Thanh trên — trượt đi hẳn khi vào toàn màn hình.
+        AnimatedVisibility(
+            visible = !immersive,
+            enter = fadeIn(tween(220, easing = Motion.Easing)) +
+                slideInVertically(tween(280, easing = Motion.Easing)) { -it / 3 },
+            exit = fadeOut(tween(160)) +
+                slideOutVertically(tween(220, easing = Motion.Easing)) { -it / 3 },
+            modifier = Modifier.align(Alignment.TopCenter)
         ) {
-            IconAction(
-                icon = AppIcons.Back,
-                contentDescription = stringResource(R.string.viewer_cd_back),
-                onClick = onBack
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = document.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(scheme.surface.copy(alpha = 0.94f))
+                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(22.dp))
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
+                    .graphicsLayer {
+                        alpha = barIn.value
+                        translationY = (1f - barIn.value) * -36.dp.toPx()
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconAction(
+                    icon = AppIcons.Back,
+                    contentDescription = stringResource(R.string.viewer_cd_back),
+                    onClick = onBack
                 )
-                Text(
-                    text = "${document.dimensionLabel.ifBlank { stringResource(R.string.viewer_unknown_size) }} · ${document.sizeLabel}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = document.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = buildString {
+                            append(
+                                activeDoc.dimensionLabel.ifBlank {
+                                    stringResource(R.string.viewer_unknown_size)
+                                }
+                            )
+                            append(" · ")
+                            append(activeDoc.sizeLabel)
+                            if (editedDoc != null) {
+                                append(" · ")
+                                append(stringResource(R.string.viewer_edited))
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconAction(
+                    icon = if (settings.background.checker) AppIcons.Checker else AppIcons.Grid,
+                    contentDescription = stringResource(R.string.viewer_cd_canvas),
+                    onClick = {
+                        haptics.click()
+                        showCanvasSheet = true
+                    },
+                    tint = scheme.onSurfaceVariant
+                )
+                IconAction(
+                    icon = AppIcons.More,
+                    contentDescription = stringResource(R.string.viewer_cd_tools),
+                    onClick = {
+                        haptics.click()
+                        showTools = true
+                    },
+                    tint = scheme.onSurfaceVariant
+                )
+                IconAction(
+                    icon = AppIcons.Export,
+                    contentDescription = stringResource(R.string.viewer_cd_export),
+                    onClick = {
+                        haptics.impact()
+                        showExportSheet = true
+                    },
+                    filled = true
                 )
             }
-            IconAction(
-                icon = if (settings.background.checker) AppIcons.Checker else AppIcons.Grid,
-                contentDescription = stringResource(R.string.viewer_cd_canvas),
-                onClick = {
-                    haptics.click()
-                    showCanvasSheet = true
-                },
-                tint = scheme.onSurfaceVariant
-            )
-            IconAction(
-                icon = AppIcons.More,
-                contentDescription = stringResource(R.string.viewer_cd_tools),
-                onClick = {
-                    haptics.click()
-                    showTools = true
-                },
-                tint = scheme.onSurfaceVariant
-            )
-            IconAction(
-                icon = AppIcons.Export,
-                contentDescription = stringResource(R.string.viewer_cd_export),
-                onClick = {
-                    haptics.impact()
-                    showExportSheet = true
-                },
-                filled = true
-            )
         }
 
-        // Dock dưới
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 18.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(scheme.surface.copy(alpha = 0.95f))
-                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(26.dp))
-                .padding(horizontal = 4.dp, vertical = 4.dp)
-                .graphicsLayer {
-                    alpha = dockIn.value
-                    translationY = (1f - dockIn.value) * 44.dp.toPx()
-                },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(0.dp)
+        // Dock dưới — cùng nhịp ẩn/hiện với thanh trên.
+        AnimatedVisibility(
+            visible = !immersive,
+            enter = fadeIn(tween(220, easing = Motion.Easing)) +
+                slideInVertically(tween(300, easing = Motion.Easing)) { it / 3 },
+            exit = fadeOut(tween(160)) +
+                slideOutVertically(tween(220, easing = Motion.Easing)) { it / 3 },
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
+            Row(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 18.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(scheme.surface.copy(alpha = 0.95f))
+                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(26.dp))
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
+                    .graphicsLayer {
+                        alpha = dockIn.value
+                        translationY = (1f - dockIn.value) * 44.dp.toPx()
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
             IconAction(
                 icon = AppIcons.Fit,
                 contentDescription = stringResource(R.string.viewer_cd_fit),
@@ -681,14 +945,98 @@ fun ViewerScreen(
                 size = dockButton,
                 iconSize = dockIcon
             )
-            IconAction(
-                icon = AppIcons.Replay,
-                contentDescription = stringResource(R.string.viewer_cd_replay),
-                onClick = { reloadDocument() },
-                tint = scheme.onSurfaceVariant,
-                size = dockButton,
-                iconSize = dockIcon
-            )
+                IconAction(
+                    icon = AppIcons.Replay,
+                    contentDescription = stringResource(R.string.viewer_cd_replay),
+                    onClick = { reloadDocument() },
+                    tint = scheme.onSurfaceVariant,
+                    size = dockButton,
+                    iconSize = dockIcon
+                )
+            }
+        }
+
+        // Nút soi phần tử: nổi bên phải, không chiếm chỗ của thanh trên.
+        if (!immersive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 10.dp)
+                    .clip(CircleShape)
+                    .background(scheme.surface.copy(alpha = 0.94f))
+                    .border(1.dp, scheme.outlineVariant, CircleShape)
+            ) {
+                IconAction(
+                    icon = AppIcons.Inspect,
+                    contentDescription = stringResource(
+                        if (inspecting) R.string.inspector_cd_exit else R.string.inspector_cd_enter
+                    ),
+                    onClick = { if (inspecting) exitInspect() else enterInspect() },
+                    tint = if (inspecting) null else scheme.onSurface,
+                    filled = inspecting,
+                    size = 44.dp,
+                    iconSize = 19.dp
+                )
+            }
+        }
+
+        // Bảng soi phần tử: nổi phía trên dock để khung vẽ vẫn chạm được.
+        AnimatedVisibility(
+            visible = inspecting,
+            enter = fadeIn(tween(200, easing = Motion.Easing)) +
+                slideInVertically(tween(280, easing = Motion.Easing)) { it / 4 },
+            exit = fadeOut(tween(150)) +
+                slideOutVertically(tween(220, easing = Motion.Easing)) { it / 4 },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, bottom = 84.dp)
+        ) {
+            val element = selected
+            if (element == null) {
+                InspectorHint()
+            } else {
+                InspectorPanel(
+                    element = element,
+                    onClose = { exitInspect() },
+                    onParent = { js("window.SVGViewer && window.SVGViewer.selectParent()") },
+                    onToggleHidden = { toggleElementHidden() },
+                    onCopy = { copyElementCode() }
+                )
+            }
+        }
+
+        // Gợi ý thoát toàn màn hình, tự tắt sau vài giây.
+        AnimatedVisibility(
+            visible = immersive && immersiveHint,
+            enter = fadeIn(tween(240, easing = Motion.Easing)),
+            exit = fadeOut(tween(260, easing = Motion.Easing)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 34.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(scheme.surface.copy(alpha = 0.92f))
+                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = AppIcons.Fullscreen,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.immersive_hint),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurface
+                )
+            }
         }
 
         SnackbarHost(
@@ -696,8 +1044,34 @@ fun ViewerScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 92.dp, start = 16.dp, end = 16.dp)
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = if (inspecting) 300.dp else 92.dp
+                )
         )
+
+        // Trình soạn mã: phủ toàn màn hình nhưng vẫn cùng một cửa sổ, nên
+        // edge-to-edge và thanh hệ thống giữ nguyên cách xử lý.
+        AnimatedVisibility(
+            visible = showEditor,
+            enter = fadeIn(tween(200, easing = Motion.Easing)),
+            exit = fadeOut(tween(160, easing = Motion.Easing))
+        ) {
+            CodeEditorScreen(
+                text = draft,
+                initial = document.markup,
+                applied = activeMarkup,
+                onTextChange = { draft = it },
+                onDismiss = { showEditor = false },
+                onCopy = {
+                    clipboard.setText(AnnotatedString(draft))
+                    haptics.success()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.info_code_copied)) }
+                },
+                onApply = { applyEdit(draft) }
+            )
+        }
     }
 
     if (showCanvasSheet) {
@@ -742,9 +1116,19 @@ fun ViewerScreen(
         ) {
             ToolsSheet(
                 inverted = inverted,
+                immersive = immersive,
+                onInspect = {
+                    showTools = false
+                    enterInspect()
+                },
                 onInvert = {
                     inverted = !inverted
                     js("window.SVGViewer && window.SVGViewer.setInvert($inverted)")
+                },
+                onImmersive = {
+                    showTools = false
+                    if (!immersive) exitInspect()
+                    immersive = !immersive
                 },
                 onInfo = {
                     showTools = false
@@ -753,6 +1137,15 @@ fun ViewerScreen(
                 onCopy = {
                     showTools = false
                     copyCode()
+                },
+                onShare = {
+                    showTools = false
+                    shareDocument()
+                },
+                onEditor = {
+                    draft = activeMarkup
+                    showTools = false
+                    showEditor = true
                 },
                 onIconSet = {
                     showTools = false
@@ -765,6 +1158,15 @@ fun ViewerScreen(
                 onPalette = {
                     showTools = false
                     showPalette = true
+                    requestColors()
+                },
+                onHealth = {
+                    showTools = false
+                    showHealth = true
+                },
+                onSnippets = {
+                    showTools = false
+                    showSnippets = true
                 },
                 onPrint = {
                     showTools = false
@@ -804,25 +1206,89 @@ fun ViewerScreen(
     }
 
     if (showPalette) {
-        val swatches = remember(document.markup) { SvgPalette.extract(document.markup) }
         ModalBottomSheet(
             onDismissRequest = { showPalette = false },
             sheetState = paletteSheetState,
             containerColor = scheme.surface
         ) {
-            PaletteSheet(
-                swatches = swatches,
+            RecolorSheet(
+                swatches = recolorSwatches,
+                steps = recolorSteps,
+                onPick = { hex -> paletteTarget = hex },
                 onCopy = { hex ->
                     clipboard.setText(AnnotatedString(hex))
                     haptics.success()
                     scope.launch { snackbar.showSnackbar(context.getString(R.string.palette_copied, hex)) }
+                },
+                onUndo = {
+                    haptics.tick()
+                    undoRecolor()
+                },
+                onReset = {
+                    haptics.warning()
+                    resetRecolor()
+                }
+            )
+        }
+    }
+
+    val recolorTarget = paletteTarget
+    if (recolorTarget != null) {
+        Dialog(onDismissRequest = { paletteTarget = null }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = scheme.surface
+            ) {
+                ColorPickerSheet(
+                    initial = colorOf(recolorTarget),
+                    onDismiss = { paletteTarget = null },
+                    onPick = { color ->
+                        applyRecolor(recolorTarget, toHex(color))
+                        paletteTarget = null
+                    }
+                )
+            }
+        }
+    }
+
+    if (showHealth) {
+        val report by produceState<SvgHealth.Report?>(initialValue = null, activeMarkup) {
+            value = withContext(Dispatchers.Default) { SvgHealth.analyze(activeMarkup) }
+        }
+        ModalBottomSheet(
+            onDismissRequest = { showHealth = false },
+            sheetState = healthSheetState,
+            containerColor = scheme.surface
+        ) {
+            HealthSheet(
+                report = report,
+                onOptimize = {
+                    showHealth = false
+                    showOptimize = true
+                }
+            )
+        }
+    }
+
+    if (showSnippets) {
+        ModalBottomSheet(
+            onDismissRequest = { showSnippets = false },
+            sheetState = snippetsSheetState,
+            containerColor = scheme.surface
+        ) {
+            SnippetsSheet(
+                markup = activeMarkup,
+                onCopy = { snippet ->
+                    clipboard.setText(AnnotatedString(snippet))
+                    haptics.success()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.snippets_copied)) }
                 }
             )
         }
     }
 
     if (showOptimize) {
-        val optimized = remember(document.markup) { SvgOptimizer.optimize(document.markup) }
+        val optimized = remember(activeMarkup) { SvgOptimizer.optimize(activeMarkup) }
         ModalBottomSheet(
             onDismissRequest = { showOptimize = false },
             sheetState = optimizeSheetState,
@@ -873,7 +1339,7 @@ fun ViewerScreen(
             containerColor = scheme.surface
         ) {
             ExportSheet(
-                document = document,
+                document = activeDoc,
                 width = exportW,
                 height = exportH,
                 background = exportBg,
@@ -928,7 +1394,8 @@ fun ViewerScreen(
 
     if (showInfo) {
         InfoDialog(
-            document = document,
+            document = activeDoc,
+            markup = activeMarkup,
             onCopy = {
                 showInfo = false
                 copyCode()
@@ -1087,12 +1554,19 @@ private fun SpeedSheet(current: Float, onPick: (Float) -> Unit) {
 @Composable
 private fun ToolsSheet(
     inverted: Boolean,
+    immersive: Boolean,
+    onInspect: () -> Unit,
     onInvert: () -> Unit,
+    onImmersive: () -> Unit,
     onInfo: () -> Unit,
     onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onEditor: () -> Unit,
     onIconSet: () -> Unit,
     onOptimize: () -> Unit,
     onPalette: () -> Unit,
+    onHealth: () -> Unit,
+    onSnippets: () -> Unit,
     onPrint: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -1116,6 +1590,12 @@ private fun ToolsSheet(
         Spacer(Modifier.height(16.dp))
 
         ToolRow(
+            icon = AppIcons.Inspect,
+            title = stringResource(R.string.tools_inspect),
+            subtitle = stringResource(R.string.tools_inspect_desc),
+            onClick = onInspect
+        )
+        ToolRow(
             icon = AppIcons.Info,
             title = stringResource(R.string.tools_info),
             subtitle = stringResource(R.string.tools_info_desc),
@@ -1128,6 +1608,18 @@ private fun ToolsSheet(
             onClick = onCopy
         )
         ToolRow(
+            icon = AppIcons.Share,
+            title = stringResource(R.string.tools_share),
+            subtitle = stringResource(R.string.tools_share_desc),
+            onClick = onShare
+        )
+        ToolRow(
+            icon = AppIcons.CodeBlock,
+            title = stringResource(R.string.tools_editor),
+            subtitle = stringResource(R.string.tools_editor_desc),
+            onClick = onEditor
+        )
+        ToolRow(
             icon = AppIcons.Invert,
             title = stringResource(R.string.tools_invert),
             subtitle = stringResource(R.string.tools_invert_desc),
@@ -1136,6 +1628,26 @@ private fun ToolsSheet(
                 Switch(
                     checked = inverted,
                     onCheckedChange = { onInvert() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = scheme.background,
+                        checkedTrackColor = scheme.onBackground,
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = scheme.onSurfaceVariant,
+                        uncheckedTrackColor = Color.Transparent,
+                        uncheckedBorderColor = scheme.outline
+                    )
+                )
+            }
+        )
+        ToolRow(
+            icon = AppIcons.Fullscreen,
+            title = stringResource(R.string.tools_fullscreen),
+            subtitle = stringResource(R.string.tools_fullscreen_desc),
+            onClick = onImmersive,
+            trailing = {
+                Switch(
+                    checked = immersive,
+                    onCheckedChange = { onImmersive() },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = scheme.background,
                         checkedTrackColor = scheme.onBackground,
@@ -1167,6 +1679,18 @@ private fun ToolsSheet(
             title = stringResource(R.string.tools_palette),
             subtitle = stringResource(R.string.tools_palette_desc),
             onClick = onPalette
+        )
+        ToolRow(
+            icon = AppIcons.Health,
+            title = stringResource(R.string.tools_health),
+            subtitle = stringResource(R.string.tools_health_desc),
+            onClick = onHealth
+        )
+        ToolRow(
+            icon = AppIcons.Tag,
+            title = stringResource(R.string.tools_snippets),
+            subtitle = stringResource(R.string.tools_snippets_desc),
+            onClick = onSnippets
         )
         ToolRow(
             icon = AppIcons.Printer,
@@ -1395,77 +1919,6 @@ private fun IconSetSheet(onExport: (List<Int>, Color?, Int) -> Unit) {
 }
 
 @Composable
-private fun PaletteSheet(swatches: List<SvgPalette.Swatch>, onCopy: (String) -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val haptics = LocalHaptics.current
-
-    Column(
-        Modifier
-            .padding(horizontal = 20.dp)
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-    ) {
-        Text(
-            text = stringResource(R.string.palette_title),
-            style = MaterialTheme.typography.titleLarge,
-            color = scheme.onSurface
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.palette_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = scheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(18.dp))
-
-        if (swatches.isEmpty()) {
-            Text(
-                text = stringResource(R.string.palette_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant
-            )
-        } else {
-            swatches.chunked(4).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { swatch ->
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .tap(role = null) {
-                                    haptics.selection()
-                                    onCopy(swatch.hex)
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(colorOf(swatch.hex))
-                                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(10.dp))
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = swatch.hex.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = scheme.onSurface,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
-                }
-                Spacer(Modifier.height(6.dp))
-            }
-        }
-        Spacer(Modifier.height(24.dp))
-    }
-}
-
-@Composable
 private fun OptimizeSheet(
     result: SvgOptimizer.Result,
     onCopy: () -> Unit,
@@ -1564,8 +2017,20 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
     }
 }
 
-private fun colorOf(hex: String): Color =
+internal fun colorOf(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
+
+/** Đọc danh sách màu WebView gửi lên: `[{"hex":"#rrggbb","count":n}, …]`. */
+internal fun parseSwatches(json: String): List<SvgPalette.Swatch>? = runCatching {
+    val array = JSONArray(json)
+    buildList {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val hex = item.optString("hex").takeIf { it.length >= 4 } ?: continue
+            add(SvgPalette.Swatch(hex.lowercase(), item.optInt("count", 1)))
+        }
+    }
+}.getOrNull()
 
 private fun formatBytes(bytes: Int): String = when {
     bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.2f MB", bytes / 1048576.0)
@@ -1965,7 +2430,12 @@ private fun NumberField(
 }
 
 @Composable
-private fun InfoDialog(document: SvgDocument, onCopy: () -> Unit, onDismiss: () -> Unit) {
+private fun InfoDialog(
+    document: SvgDocument,
+    markup: String,
+    onCopy: () -> Unit,
+    onDismiss: () -> Unit
+) {
     val scheme = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2016,7 +2486,7 @@ private fun InfoDialog(document: SvgDocument, onCopy: () -> Unit, onDismiss: () 
                     stringResource(R.string.info_elements),
                     stringResource(
                         R.string.info_elements_count,
-                        Regex("<[a-zA-Z]").findAll(document.markup).count()
+                        Regex("<[a-zA-Z]").findAll(markup).count()
                     )
                 )
             }

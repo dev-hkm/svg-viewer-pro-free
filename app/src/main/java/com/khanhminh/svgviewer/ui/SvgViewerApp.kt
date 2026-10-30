@@ -82,6 +82,7 @@ import com.khanhminh.svgviewer.data.SvgDocument
 import com.khanhminh.svgviewer.data.SvgLoader
 import com.khanhminh.svgviewer.data.ThemeMode
 import com.khanhminh.svgviewer.render.ImageSaver
+import com.khanhminh.svgviewer.render.SvgSharer
 import com.khanhminh.svgviewer.ui.haptics.AndroidHaptics
 import com.khanhminh.svgviewer.ui.haptics.LocalHaptics
 import com.khanhminh.svgviewer.ui.theme.AppIcons
@@ -114,6 +115,8 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var ripple by remember { mutableStateOf<RippleState?>(null) }
     var themeAnchor by remember { mutableStateOf(Offset.Zero) }
+    // Màn xem báo màu nền thật đang phủ hệ thống bar (ví dụ trình soạn mã sáng).
+    var viewerBarsOverride by remember { mutableStateOf<Boolean?>(null) }
 
     val darkTheme = when (store.themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -255,6 +258,20 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
         }
     }
 
+    /** Gửi tệp .svg thật của một mục gần đây qua hộp chia sẻ hệ thống. */
+    fun shareRecent(file: RecentFile) {
+        scope.launch {
+            val markup = withContext(Dispatchers.IO) { recentStore.readCached(file) }
+            val ok = markup != null && SvgSharer.share(context, markup, file.name)
+            if (ok) {
+                haptics.click()
+            } else {
+                haptics.warning()
+                snackbar.showSnackbar(context.getString(R.string.share_failed))
+            }
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -271,7 +288,7 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
         // Status bar lấy đúng màu đang nằm sau nó: nền app ở màn chính,
         // nền canvas thật ở màn xem — nên icon luôn tương phản.
         val behindBars = if (document == null) scheme.background else Color(store.background.argb)
-        SystemBars(lightIcons = behindBars.isLight())
+        SystemBars(lightIcons = viewerBarsOverride ?: behindBars.isLight())
 
         CompositionLocalProvider(LocalHaptics provides haptics) {
             Surface(
@@ -289,6 +306,7 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                         if (current == null) {
                             HomeScreen(
                                 recents = recents,
+                                recentSort = store.recentSort,
                                 themeMode = store.themeMode,
                                 onOpenFile = {
                                     picker.launch(
@@ -315,6 +333,7 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                 },
                                 onRename = { renaming = it },
                                 onSaveCopy = { saveCopy(it) },
+                                onShareRecent = { shareRecent(it) },
                                 onRemoveRecent = {
                                     recentStore.remove(it.uri)
                                     refreshRecents()
@@ -322,6 +341,10 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                 onClearRecents = {
                                     recentStore.clear()
                                     recents = emptyList()
+                                },
+                                onSortChange = { sort ->
+                                    haptics.selection()
+                                    store.updateRecentSort(sort)
                                 },
                                 onToggleTheme = {
                                     store.updateThemeMode(
@@ -358,6 +381,7 @@ fun SvgViewerApp(incoming: IncomingSvg? = null) {
                                         refreshRecents()
                                     }
                                 },
+                                onLightBarsChange = { viewerBarsOverride = it },
                                 onBack = { document = null }
                             )
                         }

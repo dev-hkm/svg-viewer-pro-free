@@ -29,6 +29,21 @@
     align-items: center; justify-content: center;
     color: #FF8A9B; font-size: 15px; padding: 24px; text-align: center;
   }
+  /*
+    Khung chọn phần tử: viền đen + quầng trắng để luôn nổi trên mọi nền
+    (trắng, đen, ca-rô) mà vẫn đúng ngôn ngữ đen-trắng của app.
+  */
+  #inspectBox {
+    position: fixed; display: none; pointer-events: none; z-index: 40;
+    outline: 1.5px solid #000;
+    box-shadow: 0 0 0 2.5px #fff, 0 0 0 3.5px rgba(0, 0, 0, 0.35);
+  }
+  #inspectTag {
+    position: absolute; left: -1.5px; top: -23px;
+    background: #000; color: #fff; border-radius: 5px;
+    font: 600 11px/1 -apple-system, "Roboto", sans-serif;
+    letter-spacing: 0.2px; padding: 5px 7px; white-space: nowrap;
+  }
 </style>
 </head>
 <body>
@@ -67,6 +82,7 @@
 </script>
   <div id="stage"><!--SVG_CONTENT--></div>
   <div id="error"></div>
+  <div id="inspectBox"><span id="inspectTag"></span></div>
 <script>
 (function () {
   "use strict";
@@ -80,6 +96,15 @@
   var lastZoomPct = -1;
   var pauseStyle = null;
   var commitTimer = 0;
+
+  /* ---------------- inspector + recolor state ---------------- */
+  var INSPECT = { on: false, node: null, timer: 0 };
+  var inspectBox = document.getElementById("inspectBox");
+  var inspectTag = document.getElementById("inspectTag");
+  var tapTimer = 0;
+  var recolorHistory = [];
+  var COLOR_TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;
+  var COLOR_ATTRS = ["fill", "stroke", "stop-color", "color", "flood-color", "lighting-color", "solid-color"];
 
   function bridge(name, args) {
     try {
@@ -128,6 +153,7 @@
       stage.style.height = (S.h * s) + "px";
       stage.style.transform = "translate(-50%, -50%)";
     }
+    if (INSPECT.on) placeOverlay();
     notifyZoom(false);
   }
 
@@ -190,6 +216,318 @@
     bridge("ready", [S.w, S.h]);
   }
 
+  /* ---------------- inspector ---------------- */
+
+  function svgContains(node) {
+    var svg = svgEl();
+    return !!(svg && node && node !== stage && svg.contains(node));
+  }
+
+  function colorText(value) {
+    if (!value) return "";
+    var s = String(value).trim();
+    if (s === "none" || s === "transparent") return "";
+    var m = s.match(/^rgba?\(([^)]+)\)$/i);
+    if (!m) return "";
+    var parts = m[1].split(",");
+    if (parts.length < 3) return "";
+    var alpha = parts.length > 3 ? parseFloat(parts[3]) : 1;
+    if (alpha === 0) return "";
+    var hex = "";
+    for (var i = 0; i < 3; i++) {
+      var v = Math.max(0, Math.min(255, Math.round(parseFloat(parts[i]) || 0)));
+      hex += ("0" + v.toString(16)).slice(-2);
+    }
+    return "#" + hex;
+  }
+
+  function normalizeColor(value) {
+    if (!value) return "";
+    var s = String(value).trim();
+    if (/^rgba?\(/i.test(s)) return colorText(s);
+    var hash = s.match(/^#([0-9a-fA-F]+)$/);
+    if (!hash) return "";
+    var d = hash[1];
+    if (d.length === 3 || d.length === 4) {
+      d = d.slice(0, 3).split("").map(function (c) { return c + c; }).join("");
+    }
+    if (d.length === 6 || d.length === 8) return "#" + d.slice(0, 6).toLowerCase();
+    return "";
+  }
+
+  function hexToRgb(hex) {
+    var d = String(hex).replace("#", "");
+    if (d.length === 3) d = d.split("").map(function (c) { return c + c; }).join("");
+    return [parseInt(d.slice(0, 2), 16), parseInt(d.slice(2, 4), 16), parseInt(d.slice(4, 6), 16)];
+  }
+
+  function nodePath(node, svg) {
+    var path = [];
+    var cur = node;
+    while (cur && cur !== svg) {
+      var parent = cur.parentNode;
+      if (!parent) return null;
+      var index = Array.prototype.indexOf.call(parent.children, cur);
+      if (index < 0) return null;
+      path.unshift(index);
+      cur = parent;
+    }
+    return cur === svg ? path : null;
+  }
+
+  function nodeFromPath(path) {
+    var svg = svgEl();
+    if (!svg || !path || !path.length) return svg;
+    var node = svg;
+    for (var i = 0; i < path.length; i++) {
+      node = node.children[path[i]];
+      if (!node) return null;
+    }
+    return node;
+  }
+
+  function isHidden(node) {
+    var cur = node;
+    while (cur && cur.nodeType === 1) {
+      var cs = window.getComputedStyle(cur);
+      if (cs.display === "none" || cs.visibility === "hidden") return true;
+      cur = cur.parentNode;
+    }
+    return false;
+  }
+
+  function describeElement(node) {
+    var svg = svgEl();
+    var bbox = null;
+    try { bbox = node.getBBox(); } catch (e) { bbox = null; }
+    var rect = node.getBoundingClientRect();
+    var cs = window.getComputedStyle(node);
+    var path = nodePath(node, svg) || [];
+    return {
+      tag: (node.tagName || "").toLowerCase(),
+      id: node.getAttribute("id") || "",
+      cls: node.getAttribute("class") || "",
+      w: Math.round((bbox ? bbox.width : rect.width) * 10) / 10,
+      h: Math.round((bbox ? bbox.height : rect.height) * 10) / 10,
+      fill: colorText(cs.fill),
+      stroke: colorText(cs.stroke),
+      opacity: cs.opacity,
+      strokeWidth: parseFloat(cs.strokeWidth) || 0,
+      hidden: isHidden(node),
+      children: node.children ? node.children.length : 0,
+      path: path
+    };
+  }
+
+  function placeOverlay() {
+    if (!INSPECT.on || !INSPECT.node) {
+      inspectBox.style.display = "none";
+      return;
+    }
+    var node = INSPECT.node;
+    var rect = node.getBoundingClientRect();
+    if (isHidden(node) || (rect.width < 0.5 && rect.height < 0.5)) {
+      inspectBox.style.display = "none";
+      return;
+    }
+    inspectBox.style.display = "block";
+    inspectBox.style.left = rect.left + "px";
+    inspectBox.style.top = rect.top + "px";
+    inspectBox.style.width = rect.width + "px";
+    inspectBox.style.height = rect.height + "px";
+    inspectTag.style.top = rect.top < 26 ? "2px" : "-23px";
+    var id = node.getAttribute("id");
+    var tag = (node.tagName || "").toLowerCase();
+    inspectTag.textContent = id ? tag + " #" + id : tag;
+  }
+
+  function startInspectLoop() {
+    if (INSPECT.timer) return;
+    // Cảnh động bằng SMIL/CSS/JS vẫn di chuyển, nên khung chọn bám theo.
+    INSPECT.timer = setInterval(placeOverlay, 160);
+  }
+
+  function stopInspectLoop() {
+    if (INSPECT.timer) { clearInterval(INSPECT.timer); INSPECT.timer = 0; }
+  }
+
+  function setInspect(on) {
+    INSPECT.on = !!on;
+    if (INSPECT.on) {
+      lastTapTime = 0;
+      startInspectLoop();
+    } else {
+      INSPECT.node = null;
+      inspectBox.style.display = "none";
+      stopInspectLoop();
+    }
+  }
+
+  function selectNode(node) {
+    if (!svgContains(node)) return;
+    INSPECT.node = node;
+    placeOverlay();
+    bridge("inspect", [JSON.stringify(describeElement(node))]);
+  }
+
+  function selectParent() {
+    if (!INSPECT.node) return;
+    var parent = INSPECT.node.parentNode;
+    if (svgContains(parent)) selectNode(parent);
+  }
+
+  function setElementHidden(path, hidden) {
+    var node = nodeFromPath(path);
+    if (!node || node === svgEl()) return;
+    if (hidden) {
+      if (!node.hasAttribute("data-sv-display")) {
+        node.setAttribute("data-sv-display", node.style.display || "");
+      }
+      node.style.display = "none";
+    } else {
+      var previous = node.getAttribute("data-sv-display");
+      if (previous) node.style.display = previous;
+      else node.style.removeProperty("display");
+      node.removeAttribute("data-sv-display");
+    }
+    if (INSPECT.node === node) placeOverlay();
+    bridge("inspect", [JSON.stringify(describeElement(node))]);
+  }
+
+  function showAllHidden() {
+    var svg = svgEl();
+    if (!svg) return;
+    var nodes = svg.querySelectorAll("[data-sv-display]");
+    for (var i = 0; i < nodes.length; i++) {
+      var previous = nodes[i].getAttribute("data-sv-display");
+      if (previous) nodes[i].style.display = previous;
+      else nodes[i].style.removeProperty("display");
+      nodes[i].removeAttribute("data-sv-display");
+    }
+    if (INSPECT.node) placeOverlay();
+    bridge("hiddenCleared", [nodes.length]);
+  }
+
+  /* ---------------- recolor ---------------- */
+
+  function replaceColors(text, from, to) {
+    var count = 0;
+    var out = String(text).replace(COLOR_TOKEN, function (token) {
+      if (normalizeColor(token) !== from) return token;
+      count++;
+      var alpha = 1;
+      var m = token.match(/^rgba\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*([^)]+)\)$/i);
+      if (m) alpha = parseFloat(m[1]);
+      if (!isNaN(alpha) && alpha < 1) {
+        var rgb = hexToRgb(to);
+        return "rgba(" + rgb[0] + ", " + rgb[1] + ", " + rgb[2] + ", " + alpha + ")";
+      }
+      return to;
+    });
+    return { text: out, count: count };
+  }
+
+  function svgNodes() {
+    var svg = svgEl();
+    if (!svg) return [];
+    return [svg].concat(Array.prototype.slice.call(svg.querySelectorAll("*")));
+  }
+
+  function collectColors() {
+    var map = {};
+    function add(value) {
+      var hex = normalizeColor(value);
+      if (!hex) return;
+      map[hex] = (map[hex] || 0) + 1;
+    }
+    var nodes = svgNodes();
+    for (var i = 0; i < nodes.length; i++) {
+      for (var a = 0; a < COLOR_ATTRS.length; a++) {
+        var value = nodes[i].getAttribute(COLOR_ATTRS[a]);
+        if (value) add(value);
+      }
+      var style = nodes[i].getAttribute("style");
+      if (style) {
+        var tokens = style.match(COLOR_TOKEN) || [];
+        for (var j = 0; j < tokens.length; j++) add(tokens[j]);
+      }
+    }
+    var styles = svgEl() ? svgEl().querySelectorAll("style") : [];
+    for (var k = 0; k < styles.length; k++) {
+      var text = styles[k].textContent || "";
+      var list = text.match(COLOR_TOKEN) || [];
+      for (var n = 0; n < list.length; n++) add(list[n]);
+    }
+    return Object.keys(map)
+      .map(function (hex) { return { hex: hex, count: map[hex] }; })
+      .sort(function (a, b) { return b.count - a.count || (a.hex < b.hex ? -1 : 1); })
+      .slice(0, 32);
+  }
+
+  function recolor(fromArg, toArg) {
+    var from = normalizeColor(fromArg);
+    var to = normalizeColor(toArg);
+    if (!from || !to) return;
+    var op = { items: [] };
+    var total = 0;
+    var nodes = svgNodes();
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      for (var a = 0; a < COLOR_ATTRS.length; a++) {
+        var attr = COLOR_ATTRS[a];
+        var raw = node.getAttribute(attr);
+        if (raw && normalizeColor(raw) === from) {
+          op.items.push({ node: node, kind: "attr", name: attr, old: raw });
+          node.setAttribute(attr, to);
+          total++;
+        }
+      }
+      var style = node.getAttribute("style");
+      if (style) {
+        var result = replaceColors(style, from, to);
+        if (result.count) {
+          op.items.push({ node: node, kind: "attr", name: "style", old: style });
+          node.setAttribute("style", result.text);
+          total += result.count;
+        }
+      }
+    }
+    var styles = svgEl() ? svgEl().querySelectorAll("style") : [];
+    for (var k = 0; k < styles.length; k++) {
+      var text = styles[k].textContent || "";
+      var swapped = replaceColors(text, from, to);
+      if (swapped.count) {
+        op.items.push({ node: styles[k], kind: "text", old: text });
+        styles[k].textContent = swapped.text;
+        total += swapped.count;
+      }
+    }
+    if (total > 0) recolorHistory.push(op);
+    bridge("recolor", [total, from, to]);
+  }
+
+  function undoOneRecolor() {
+    var op = recolorHistory.pop();
+    if (!op) return false;
+    for (var i = op.items.length - 1; i >= 0; i--) {
+      var item = op.items[i];
+      if (item.kind === "text") item.node.textContent = item.old;
+      else item.node.setAttribute(item.name, item.old);
+    }
+    return true;
+  }
+
+  function undoRecolor() {
+    undoOneRecolor();
+    bridge("recolor", [0, "", ""]);
+  }
+
+  function resetRecolor() {
+    var steps = 0;
+    while (undoOneRecolor()) steps++;
+    bridge("recolorReset", [steps]);
+  }
+
   /* ---------------- gestures ---------------- */
   var pointers = new Map();
   var drag = null;
@@ -218,7 +556,9 @@
 
   el.addEventListener("pointerdown", function (e) {
     beginLive();
-    el.setPointerCapture(e.pointerId);
+    if (el.setPointerCapture) {
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (pointers.size === 1) {
@@ -272,11 +612,19 @@
       var now = Date.now();
       var isDouble = (now - lastTapTime) < 320 &&
         Math.abs(e.clientX - lastTapX) < 48 && Math.abs(e.clientY - lastTapY) < 48;
-      if (isDouble) {
+      if (INSPECT.on) {
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = 0; }
+        var target = document.elementFromPoint(e.clientX, e.clientY);
+        if (target) selectNode(target);
+      } else if (isDouble) {
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = 0; }
         lastTapTime = 0;
         if (S.zoom > 1.6) { window.SVGViewer.fit(); }
         else { zoomAt(3, e.clientX, e.clientY); }
       } else {
+        if (tapTimer) clearTimeout(tapTimer);
+        // Chờ một nhịp để chắc đây là chạm đơn (không phải chạm đôi) rồi mới báo.
+        tapTimer = setTimeout(function () { tapTimer = 0; bridge("tap"); }, 300);
         lastTapTime = now;
         lastTapX = e.clientX;
         lastTapY = e.clientY;
@@ -537,6 +885,18 @@
     snapshot: snapshot,
     setSpeed: setSpeed,
     setInvert: setInvert,
+    inspect: setInspect,
+    getSelection: function () {
+      return INSPECT.node ? describeElement(INSPECT.node) : null;
+    },
+    selectParent: selectParent,
+    setHidden: setElementHidden,
+    showAllHidden: showAllHidden,
+    elementCode: function () { return INSPECT.node ? INSPECT.node.outerHTML : ""; },
+    collectColors: collectColors,
+    recolor: recolor,
+    undoRecolor: undoRecolor,
+    resetRecolor: resetRecolor,
     getState: function () { return { zoom: S.zoom, w: S.w, h: S.h, base: S.base }; }
   };
 

@@ -72,6 +72,20 @@ object SvgLoader {
         return build(null, displayName, text, text.toByteArray().size.toLong(), SvgDocument.Origin.CLIPBOARD)
     }
 
+    /**
+     * Dựng lại tài liệu từ markup người dùng vừa sửa, giữ nguyên nguồn và tên
+     * để danh sách gần đây, ảnh thu nhỏ và chia sẻ vẫn gắn đúng tệp.
+     */
+    fun recompute(base: SvgDocument, markup: String): SvgDocument? = runCatching {
+        build(
+            uri = base.uri,
+            name = base.name,
+            rawMarkup = markup,
+            byteSize = markup.toByteArray().size.toLong(),
+            origin = base.origin
+        )
+    }.getOrNull()
+
     private fun build(
         uri: Uri?,
         name: String,

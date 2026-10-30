@@ -13,6 +13,13 @@ enum class ThemeMode(@StringRes val labelRes: Int) {
     DARK(R.string.theme_dark)
 }
 
+/** Thứ tự danh sách tệp gần đây; tệp đã ghim luôn đứng trước. */
+enum class RecentSort(@StringRes val labelRes: Int) {
+    RECENT(R.string.sort_recent),
+    NAME(R.string.sort_name),
+    SIZE(R.string.sort_size)
+}
+
 /**
  * Tuỳ chọn hiển thị của ứng dụng, lưu bền qua SharedPreferences
  * nhưng expose dưới dạng State để Compose tự cập nhật.
@@ -35,6 +42,16 @@ class SettingsStore(context: Context) {
     /** Hệ số tốc độ phát animation của SVG (1.0 = bình thường). */
     var playbackSpeed by mutableStateOf(prefs.getFloat(KEY_SPEED, 1f).takeIf { it > 0f } ?: 1f)
         private set
+
+    var recentSort by mutableStateOf(
+        RecentSort.entries.getOrElse(prefs.getInt(KEY_SORT, 0)) { RecentSort.RECENT }
+    )
+        private set
+
+    fun updateRecentSort(sort: RecentSort) {
+        recentSort = sort
+        prefs.edit().putInt(KEY_SORT, sort.ordinal).apply()
+    }
 
     fun updatePlaybackSpeed(speed: Float) {
         val safe = speed.coerceIn(0.25f, 4f)
@@ -63,6 +80,7 @@ class SettingsStore(context: Context) {
         const val KEY_BG_LEGACY = "canvas_background"
         const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_SPEED = "playback_speed"
+        const val KEY_SORT = "recent_sort"
 
         fun loadBackground(prefs: android.content.SharedPreferences): CanvasBackground =
             CanvasBackground.fromName(prefs.getString(KEY_BG, null))

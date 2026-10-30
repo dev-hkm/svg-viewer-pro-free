@@ -208,7 +208,6 @@
 
     <!-- Palette -->
     <string name="palette_title">Color palette</string>
-    <string name="palette_subtitle">Tap a swatch to copy its HEX code.</string>
     <string name="palette_empty">This drawing has no color values to read.</string>
     <string name="palette_copied">Copied %1$s</string>
 
@@ -240,6 +239,133 @@
     <string name="recent_save_copy">Save a .svg copy</string>
     <string name="recent_save_copy_ok">Saved to Download/SVG Viewer</string>
     <string name="recent_save_copy_failed">Could not save the copy</string>
+    <string name="recent_share">Share .svg</string>
     <string name="recent_remove">Remove from recents</string>
-    <string name="home_recents_hint">Long-press a file to rename it or save a copy</string>
+    <string name="home_recents_hint">Long-press a file to rename, share or save a copy</string>
+
+    <!-- Recents search & sort -->
+    <string name="home_cd_search">Search recent files</string>
+    <string name="home_cd_clear_search">Clear search</string>
+    <string name="home_cd_sort">Sort recent files</string>
+    <string name="home_search_hint">Search by name</string>
+    <string name="home_recents_no_match">No file matches that name</string>
+    <string name="sort_recent">Newest first</string>
+    <string name="sort_name">Name A–Z</string>
+    <string name="sort_size">Largest first</string>
+
+    <!-- Share -->
+    <string name="share_chooser">Share SVG</string>
+    <string name="share_failed">Couldn\'t share this file</string>
+
+    <!-- Inspector -->
+    <string name="viewer_edited">Edited</string>
+    <string name="tools_inspect">Inspect element</string>
+    <string name="tools_inspect_desc">Tap any shape to see its tag, colors and size</string>
+    <string name="inspector_hint">Tap any element to inspect it</string>
+    <string name="inspector_close">Stop inspecting</string>
+    <string name="inspector_root">Whole document</string>
+    <string name="inspector_size">Size %1$s</string>
+    <string name="inspector_fill">Fill</string>
+    <string name="inspector_stroke">Stroke</string>
+    <string name="inspector_children">Children</string>
+    <string name="inspector_parent">Parent</string>
+    <string name="inspector_hide">Hide</string>
+    <string name="inspector_show">Show</string>
+    <string name="inspector_copy">Copy code</string>
+    <string name="inspector_copied">Element code copied</string>
+    <string name="inspector_none">Nothing to copy here</string>
+    <string name="inspector_restored">Restored %1$d hidden elements</string>
+    <string name="inspector_cd_enter">Inspect elements</string>
+    <string name="inspector_cd_exit">Stop inspecting</string>
+
+    <!-- Code editor -->
+    <string name="tools_editor">Edit code</string>
+    <string name="tools_editor_desc">Change the markup and re-render instantly</string>
+    <string name="editor_title">Edit SVG code</string>
+    <string name="editor_close">Close editor</string>
+    <string name="editor_chars">%1$d characters</string>
+    <string name="editor_reset">Reset</string>
+    <string name="editor_copy">Copy</string>
+    <string name="editor_apply">Apply changes</string>
+    <string name="editor_invalid">Couldn\'t rebuild this markup. Check that the &lt;svg&gt; element is still intact.</string>
+
+    <!-- Share file tool -->
+    <string name="tools_share">Share .svg file</string>
+    <string name="tools_share_desc">Send the original vector file to another app</string>
+
+    <!-- Full screen -->
+    <string name="tools_fullscreen">Full screen</string>
+    <string name="tools_fullscreen_desc">Hide every bar and just watch the artwork</string>
+    <string name="immersive_hint">Tap to exit full screen</string>
+
+    <!-- Health check -->
+    <string name="tools_health">Health check</string>
+    <string name="tools_health_desc">Spot problems before the file leaves the app</string>
+    <string name="health_title">Health check</string>
+    <string name="health_subtitle">Quick scan for things that break when the file travels.</string>
+    <string name="health_checking">Checking…</string>
+    <string name="health_checks">Findings</string>
+    <string name="health_total">%1$d issues</string>
+    <string name="health_out_of">out of 100</string>
+    <string name="health_summary">%1$d warnings · %2$d notes</string>
+    <string name="health_grade_good">Looks solid</string>
+    <string name="health_grade_ok">Good, with a few notes</string>
+    <string name="health_grade_bad">Needs attention</string>
+    <string name="health_clean">No issues found</string>
+    <string name="health_clean_desc">This file should travel well.</string>
+    <string name="health_count">×%1$d</string>
+    <string name="health_optimize">Optimize code</string>
+    <string name="health_note">Read-only check. Nothing in the file is changed.</string>
+    <string name="health_viewbox">No viewBox</string>
+    <string name="health_viewbox_desc">Without a viewBox the file may not scale cleanly.</string>
+    <string name="health_dimensions">No fixed size</string>
+    <string name="health_dimensions_desc">No width or height attributes; some apps pick their own default size.</string>
+    <string name="health_a11y">No accessible name</string>
+    <string name="health_a11y_desc">Add a &lt;title&gt; or aria-label so screen readers can describe it.</string>
+    <string name="health_script">Contains scripts</string>
+    <string name="health_script_desc">Many editors and image hosts block or strip scripts.</string>
+    <string name="health_external">Loads external files</string>
+    <string name="health_external_desc">Links to remote URLs may break offline or be blocked.</string>
+    <string name="health_embedded">Embedded raster images</string>
+    <string name="health_embedded_desc">Bitmap images inside an SVG won\'t stay sharp when scaled.</string>
+    <string name="health_text">Text without fonts</string>
+    <string name="health_text_desc">Fonts may swap on other devices; convert text to paths if it must match exactly.</string>
+    <string name="health_filter">Filters in use</string>
+    <string name="health_filter_desc">Blur and shadow filters can slow rendering on older devices.</string>
+    <string name="health_ids">Duplicate IDs</string>
+    <string name="health_ids_desc">Repeated IDs can make gradients and references point at the wrong element.</string>
+    <string name="health_foreign">foreignObject</string>
+    <string name="health_foreign_desc">HTML inside an SVG often breaks in non-browser apps.</string>
+    <string name="health_size">Large file</string>
+    <string name="health_size_desc">Bigger files take longer to open and share.</string>
+    <string name="health_animation">Animation</string>
+    <string name="health_animation_desc">Animated files may pause or play differently outside a browser.</string>
+
+    <!-- Snippets -->
+    <string name="tools_snippets">Copy as snippet</string>
+    <string name="tools_snippets_desc">Data URI, CSS, HTML or React component</string>
+    <string name="snippets_title">Copy as snippet</string>
+    <string name="snippets_subtitle">Ready-to-paste forms of this drawing, built on the fly.</string>
+    <string name="snippets_building">Building…</string>
+    <string name="snippets_copy">Copy snippet</string>
+    <string name="snippets_copied">Snippet copied</string>
+    <string name="snippets_note">Whole drawing kept; only the wrapper changes.</string>
+    <string name="snippets_chars">%1$d characters</string>
+    <string name="snippets_data_uri">Data URI</string>
+    <string name="snippets_data_uri_desc">Paste straight into src, href or url().</string>
+    <string name="snippets_css">CSS</string>
+    <string name="snippets_css_desc">A background-image rule you can drop into any stylesheet.</string>
+    <string name="snippets_img">HTML</string>
+    <string name="snippets_img_desc">An img tag with the artwork embedded.</string>
+    <string name="snippets_react">React</string>
+    <string name="snippets_react_desc">A typed component for JSX/TSX with props for sizing.</string>
+
+    <!-- Palette recolor -->
+    <string name="palette_recolor_subtitle">Tap a swatch to change that color everywhere, or hold to copy the HEX.</string>
+    <string name="palette_undo">Undo</string>
+    <string name="palette_reset">Reset</string>
+    <string name="palette_steps">Step %1$d</string>
+    <string name="palette_places">×%1$d</string>
+    <string name="palette_none">That color is no longer in the drawing</string>
+    <string name="palette_recolor_note">Changes apply to this preview only; the original file is untouched.</string>
 </resources>

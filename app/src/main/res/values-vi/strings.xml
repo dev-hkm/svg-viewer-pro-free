@@ -208,7 +208,6 @@
 
     <!-- Bảng màu -->
     <string name="palette_title">Bảng màu</string>
-    <string name="palette_subtitle">Chạm vào ô màu để chép mã HEX.</string>
     <string name="palette_empty">Hình này không có giá trị màu nào để đọc.</string>
     <string name="palette_copied">Đã chép %1$s</string>
 
@@ -240,6 +239,133 @@
     <string name="recent_save_copy">Lưu bản .svg</string>
     <string name="recent_save_copy_ok">Đã lưu vào Download/SVG Viewer</string>
     <string name="recent_save_copy_failed">Không lưu được bản sao</string>
+    <string name="recent_share">Chia sẻ .svg</string>
     <string name="recent_remove">Xoá khỏi danh sách</string>
-    <string name="home_recents_hint">Nhấn giữ một tệp để đổi tên hoặc lưu bản sao</string>
+    <string name="home_recents_hint">Nhấn giữ một tệp để đổi tên, chia sẻ hoặc lưu bản sao</string>
+
+    <!-- Tìm và sắp xếp tệp gần đây -->
+    <string name="home_cd_search">Tìm tệp gần đây</string>
+    <string name="home_cd_clear_search">Xoá tìm kiếm</string>
+    <string name="home_cd_sort">Sắp xếp tệp gần đây</string>
+    <string name="home_search_hint">Tìm theo tên</string>
+    <string name="home_recents_no_match">Không có tệp nào khớp tên đó</string>
+    <string name="sort_recent">Mới nhất trước</string>
+    <string name="sort_name">Tên A–Z</string>
+    <string name="sort_size">Lớn nhất trước</string>
+
+    <!-- Chia sẻ -->
+    <string name="share_chooser">Chia sẻ SVG</string>
+    <string name="share_failed">Không chia sẻ được tệp này</string>
+
+    <!-- Soi phần tử -->
+    <string name="viewer_edited">Đã sửa</string>
+    <string name="tools_inspect">Soi phần tử</string>
+    <string name="tools_inspect_desc">Chạm một hình để xem thẻ, màu và kích thước</string>
+    <string name="inspector_hint">Chạm vào phần tử bất kỳ để soi</string>
+    <string name="inspector_close">Thoát soi phần tử</string>
+    <string name="inspector_root">Toàn bộ tài liệu</string>
+    <string name="inspector_size">Kích thước %1$s</string>
+    <string name="inspector_fill">Tô</string>
+    <string name="inspector_stroke">Viền</string>
+    <string name="inspector_children">Phần tử con</string>
+    <string name="inspector_parent">Phần tử cha</string>
+    <string name="inspector_hide">Ẩn</string>
+    <string name="inspector_show">Hiện</string>
+    <string name="inspector_copy">Chép mã</string>
+    <string name="inspector_copied">Đã chép mã phần tử</string>
+    <string name="inspector_none">Chỗ này không có gì để chép</string>
+    <string name="inspector_restored">Đã hiện lại %1$d phần tử bị ẩn</string>
+    <string name="inspector_cd_enter">Soi phần tử</string>
+    <string name="inspector_cd_exit">Thoát soi phần tử</string>
+
+    <!-- Sửa mã -->
+    <string name="tools_editor">Sửa mã</string>
+    <string name="tools_editor_desc">Đổi markup và dựng lại hình ngay</string>
+    <string name="editor_title">Sửa mã SVG</string>
+    <string name="editor_close">Đóng trình soạn mã</string>
+    <string name="editor_chars">%1$d ký tự</string>
+    <string name="editor_reset">Khôi phục</string>
+    <string name="editor_copy">Sao chép</string>
+    <string name="editor_apply">Áp dụng thay đổi</string>
+    <string name="editor_invalid">Không dựng lại được markup này. Kiểm tra xem thẻ &lt;svg&gt; còn nguyên vẹn không.</string>
+
+    <!-- Chia sẻ tệp -->
+    <string name="tools_share">Chia sẻ tệp .svg</string>
+    <string name="tools_share_desc">Gửi nguyên tệp vector sang app khác</string>
+
+    <!-- Toàn màn hình -->
+    <string name="tools_fullscreen">Toàn màn hình</string>
+    <string name="tools_fullscreen_desc">Ẩn hết thanh, chỉ còn hình vẽ</string>
+    <string name="immersive_hint">Chạm để thoát toàn màn hình</string>
+
+    <!-- Kiểm tra sức khoẻ tệp -->
+    <string name="tools_health">Kiểm tra sức khoẻ</string>
+    <string name="tools_health_desc">Phát hiện lỗi trước khi gửi tệp đi</string>
+    <string name="health_title">Kiểm tra sức khoẻ</string>
+    <string name="health_subtitle">Rà nhanh những điểm hay làm hỏng tệp khi mang đi nơi khác.</string>
+    <string name="health_checking">Đang kiểm tra…</string>
+    <string name="health_checks">Phát hiện</string>
+    <string name="health_total">%1$d điểm cần chú ý</string>
+    <string name="health_out_of">trên 100</string>
+    <string name="health_summary">%1$d cảnh báo · %2$d ghi chú</string>
+    <string name="health_grade_good">Khá chắc</string>
+    <string name="health_grade_ok">Ổn, vài điểm cần lưu ý</string>
+    <string name="health_grade_bad">Cần sửa</string>
+    <string name="health_clean">Không phát hiện lỗi</string>
+    <string name="health_clean_desc">Tệp này mang đi đâu cũng ổn.</string>
+    <string name="health_count">×%1$d</string>
+    <string name="health_optimize">Tối ưu mã</string>
+    <string name="health_note">Chỉ đọc để kiểm tra, không sửa gì trong tệp.</string>
+    <string name="health_viewbox">Thiếu viewBox</string>
+    <string name="health_viewbox_desc">Không có viewBox thì tệp có thể phóng to không sạch.</string>
+    <string name="health_dimensions">Không có kích thước cố định</string>
+    <string name="health_dimensions_desc">Thiếu width/height; vài app sẽ tự chọn cỡ mặc định.</string>
+    <string name="health_a11y">Thiếu tên truy cập</string>
+    <string name="health_a11y_desc">Thêm &lt;title&gt; hoặc aria-label để trình đọc màn hình mô tả được.</string>
+    <string name="health_script">Có script</string>
+    <string name="health_script_desc">Nhiều trình soạn thảo và nơi lưu ảnh chặn hoặc bỏ script.</string>
+    <string name="health_external">Tải tệp bên ngoài</string>
+    <string name="health_external_desc">Liên kết tới URL từ xa dễ hỏng khi offline hoặc bị chặn.</string>
+    <string name="health_embedded">Ảnh bitmap nhúng</string>
+    <string name="health_embedded_desc">Ảnh bitmap trong SVG sẽ vỡ nét khi phóng to.</string>
+    <string name="health_text">Chữ thiếu font</string>
+    <string name="health_text_desc">Font có thể bị thay trên máy khác; cần giống hệt thì chuyển chữ thành path.</string>
+    <string name="health_filter">Có bộ lọc</string>
+    <string name="health_filter_desc">Bộ lọc mờ và bóng đổ làm máy yếu dựng hình chậm.</string>
+    <string name="health_ids">ID trùng nhau</string>
+    <string name="health_ids_desc">ID lặp lại khiến gradient và tham chiếu trỏ sai phần tử.</string>
+    <string name="health_foreign">foreignObject</string>
+    <string name="health_foreign_desc">HTML lồng trong SVG thường hỏng ở app không phải trình duyệt.</string>
+    <string name="health_size">Tệp lớn</string>
+    <string name="health_size_desc">Tệp càng lớn càng lâu mở và gửi.</string>
+    <string name="health_animation">Có animation</string>
+    <string name="health_animation_desc">Tệp động có thể dừng hoặc chạy khác ngoài trình duyệt.</string>
+
+    <!-- Snippet -->
+    <string name="tools_snippets">Chép dạng snippet</string>
+    <string name="tools_snippets_desc">Data URI, CSS, HTML hoặc component React</string>
+    <string name="snippets_title">Chép dạng snippet</string>
+    <string name="snippets_subtitle">Các dạng dán được ngay của hình này, dựng tại chỗ.</string>
+    <string name="snippets_building">Đang dựng…</string>
+    <string name="snippets_copy">Chép snippet</string>
+    <string name="snippets_copied">Đã chép snippet</string>
+    <string name="snippets_note">Giữ nguyên hình vẽ, chỉ đổi phần bọc ngoài.</string>
+    <string name="snippets_chars">%1$d ký tự</string>
+    <string name="snippets_data_uri">Data URI</string>
+    <string name="snippets_data_uri_desc">Dán thẳng vào src, href hoặc url().</string>
+    <string name="snippets_css">CSS</string>
+    <string name="snippets_css_desc">Một rule background-image dùng được trong mọi stylesheet.</string>
+    <string name="snippets_img">HTML</string>
+    <string name="snippets_img_desc">Thẻ img với hình nhúng sẵn bên trong.</string>
+    <string name="snippets_react">React</string>
+    <string name="snippets_react_desc">Component có kiểu cho JSX/TSX, nhận props để đổi cỡ.</string>
+
+    <!-- Đổi màu bảng màu -->
+    <string name="palette_recolor_subtitle">Chạm ô màu để đổi màu đó khắp bản vẽ, nhấn giữ để chép mã HEX.</string>
+    <string name="palette_undo">Hoàn tác</string>
+    <string name="palette_reset">Về gốc</string>
+    <string name="palette_steps">Bước %1$d</string>
+    <string name="palette_places">×%1$d</string>
+    <string name="palette_none">Màu đó không còn trong bản vẽ</string>
+    <string name="palette_recolor_note">Chỉ đổi trên bản xem trước; tệp gốc không bị chạm tới.</string>
 </resources>

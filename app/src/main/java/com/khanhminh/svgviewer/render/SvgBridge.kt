@@ -18,6 +18,12 @@ class SvgBridge {
     var onExportError: ((String, String) -> Unit)? = null
     var onReload: (() -> Unit)? = null
     var onThumbnail: ((String, Int, Int) -> Unit)? = null
+    var onTap: (() -> Unit)? = null
+    var onInspect: ((String) -> Unit)? = null
+    var onColors: ((String) -> Unit)? = null
+    var onRecolor: ((Int, String, String) -> Unit)? = null
+    var onRecolorReset: ((Int) -> Unit)? = null
+    var onHiddenCleared: ((Int) -> Unit)? = null
     var chunkSink: ((String) -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -67,5 +73,39 @@ class SvgBridge {
     @JavascriptInterface
     fun reload() {
         main.post { onReload?.invoke() }
+    }
+
+    /** Một cú chạm đơn trên khung vẽ (đã tách khỏi chạm đôi để phóng to). */
+    @JavascriptInterface
+    fun tap() {
+        main.post { onTap?.invoke() }
+    }
+
+    /** Phần tử đang được chọn trong chế độ soi, dạng JSON. */
+    @JavascriptInterface
+    fun inspect(json: String) {
+        main.post { onInspect?.invoke(json) }
+    }
+
+    /** Danh sách màu đang dùng trong hình, dạng JSON [{hex,count}]. */
+    @JavascriptInterface
+    fun colors(json: String) {
+        main.post { onColors?.invoke(json) }
+    }
+
+    /** Kết quả đổi màu; total = 0 nghĩa là vừa hoàn tác. */
+    @JavascriptInterface
+    fun recolor(total: Int, from: String, to: String) {
+        main.post { onRecolor?.invoke(total, from, to) }
+    }
+
+    @JavascriptInterface
+    fun recolorReset(steps: Int) {
+        main.post { onRecolorReset?.invoke(steps) }
+    }
+
+    @JavascriptInterface
+    fun hiddenCleared(count: Int) {
+        main.post { onHiddenCleared?.invoke(count) }
     }
 }

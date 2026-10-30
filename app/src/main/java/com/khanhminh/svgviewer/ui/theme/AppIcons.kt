@@ -60,6 +60,23 @@ object AppIcons {
     val Download: ImageVector get() = LightGroup.DownloadSimple
     val Rename: ImageVector get() = LightGroup.PencilSimple
 
+    val Inspect: ImageVector get() = LightGroup.CursorClick
+    val Search: ImageVector get() = LightGroup.MagnifyingGlass
+    val Sort: ImageVector get() = LightGroup.ArrowsDownUp
+    val Health: ImageVector get() = LightGroup.ShieldCheck
+    val Eye: ImageVector get() = LightGroup.Eye
+    val EyeSlash: ImageVector get() = LightGroup.EyeSlash
+    val Parent: ImageVector get() = LightGroup.ArrowUUpLeft
+    val Bounding: ImageVector get() = LightGroup.BoundingBox
+    val TextT: ImageVector get() = LightGroup.TextT
+    val Warning: ImageVector get() = LightGroup.Warning
+    val CheckCircle: ImageVector get() = LightGroup.CheckCircle
+    val Fullscreen: ImageVector get() = LightGroup.CornersOut
+    val Tag: ImageVector get() = LightGroup.Tag
+    val Sliders: ImageVector get() = LightGroup.SlidersHorizontal
+    val Layers: ImageVector get() = LightGroup.Stack
+    val CodeBlock: ImageVector get() = LightGroup.Code
+
     val Sparkle: ImageVector get() = LightGroup.Sparkle
     val Wave: ImageVector get() = LightGroup.Waveform
     val Orbit: ImageVector get() = LightGroup.CirclesFour

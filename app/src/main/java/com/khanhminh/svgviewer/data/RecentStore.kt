@@ -10,7 +10,8 @@ data class RecentFile(
     val timestamp: Long,
     val cachedPath: String? = null,
     val thumbPath: String? = null,
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val sizeBytes: Long = 0L
 )
 
 /**
@@ -44,7 +45,8 @@ class RecentStore(context: Context) {
                         timestamp = parts[2].toLongOrNull() ?: 0L,
                         cachedPath = parts.getOrNull(3)?.takeIf { it.isNotBlank() },
                         thumbPath = parts.getOrNull(4)?.takeIf { it.isNotBlank() },
-                        pinned = parts.getOrNull(5) == "1"
+                        pinned = parts.getOrNull(5) == "1",
+                        sizeBytes = parts.getOrNull(6)?.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
                     )
                 }.getOrNull()
             }
@@ -65,7 +67,8 @@ class RecentStore(context: Context) {
             cachedPath = cachePath,
             // Giữ ảnh thu nhỏ cũ để danh sách không nhấp nháy trong lúc chờ ảnh mới.
             thumbPath = old?.thumbPath,
-            pinned = old?.pinned ?: false
+            pinned = old?.pinned ?: false,
+            sizeBytes = markup?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: old?.sizeBytes ?: 0L
         )
         commit(trim(listOf(fresh) + existing))
     }
@@ -159,7 +162,7 @@ class RecentStore(context: Context) {
     private fun serialize(items: List<RecentFile>): String =
         items.joinToString("\n") {
             "${it.uri}\t${it.name}\t${it.timestamp}\t${it.cachedPath.orEmpty()}\t" +
-                "${it.thumbPath.orEmpty()}\t${if (it.pinned) "1" else "0"}"
+                "${it.thumbPath.orEmpty()}\t${if (it.pinned) "1" else "0"}\t${it.sizeBytes}"
         }
 
     private companion object {
