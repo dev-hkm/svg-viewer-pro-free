@@ -14,9 +14,15 @@
   #stage {
     position: absolute; left: 50%; top: 50%;
     transform-origin: 50% 50%;
-    will-change: transform;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -50%);
   }
+  /*
+    Chỉ trong lúc kéo/pinch mới phóng bằng transform (mượt, raster tạm thời).
+    Khi thả tay, #stage được đổi kích thước thật theo tỉ lệ zoom nên trình duyệt
+    vẽ lại vector ở đúng cỡ hiển thị — nhờ vậy zoom sâu vẫn nét, không bị nhoè
+    do phóng to một ảnh bitmap đã raster.
+  */
+  #stage.live { will-change: transform; }
   #stage > svg { display: block; width: 100%; height: 100%; overflow: visible; }
   #error {
     position: absolute; inset: 0; display: none;
@@ -67,9 +73,13 @@
 
   var stage = document.getElementById("stage");
   var errBox = document.getElementById("error");
-  var S = { zoom: 1, base: 1, x: 0, y: 0, w: 300, h: 300, ready: false, paused: false };
+  var S = {
+    zoom: 1, base: 1, x: 0, y: 0, w: 300, h: 300, ready: false, paused: false,
+    live: false, liveBase: 1
+  };
   var lastZoomPct = -1;
   var pauseStyle = null;
+  var commitTimer = 0;
 
   function bridge(name, args) {
     try {
@@ -110,8 +120,41 @@
     var s = S.base * S.zoom;
     stage.style.left = (window.innerWidth / 2 + S.x) + "px";
     stage.style.top = (window.innerHeight / 2 + S.y) + "px";
-    stage.style.transform = "translate(-50%, -50%) scale(" + s + ")";
+    if (S.live) {
+      stage.style.transform = "translate(-50%, -50%) scale(" + (s / S.liveBase) + ")";
+    } else {
+      // Khung mang đúng kích thước hiển thị thật để SVG được vẽ lại ở tỉ lệ này.
+      stage.style.width = (S.w * s) + "px";
+      stage.style.height = (S.h * s) + "px";
+      stage.style.transform = "translate(-50%, -50%)";
+    }
     notifyZoom(false);
+  }
+
+  /** Bắt đầu thao tác zoom liên tục: giữ khung ở cỡ hiện tại, phóng bằng transform. */
+  function beginLive() {
+    if (commitTimer) { clearTimeout(commitTimer); commitTimer = 0; }
+    if (S.live) return;
+    S.liveBase = Math.max(0.0001, S.base * S.zoom);
+    S.live = true;
+    stage.classList.add("live");
+    stage.style.width = (S.w * S.liveBase) + "px";
+    stage.style.height = (S.h * S.liveBase) + "px";
+    stage.style.transform = "translate(-50%, -50%) scale(1)";
+  }
+
+  /** Kết thúc thao tác: chốt lại khung theo tỉ lệ mới để nét lại ở mức zoom cuối. */
+  function endLive() {
+    if (commitTimer) { clearTimeout(commitTimer); commitTimer = 0; }
+    if (!S.live) return;
+    S.live = false;
+    stage.classList.remove("live");
+    apply();
+  }
+
+  function scheduleCommit() {
+    if (commitTimer) clearTimeout(commitTimer);
+    commitTimer = setTimeout(endLive, 180);
   }
 
   function layout() {
@@ -140,9 +183,6 @@
     svg.style.width = "100%";
     svg.style.height = "100%";
     svg.style.display = "block";
-
-    stage.style.width = S.w + "px";
-    stage.style.height = S.h + "px";
 
     layout();
     S.ready = true;
@@ -177,6 +217,7 @@
   var el = document.body;
 
   el.addEventListener("pointerdown", function (e) {
+    beginLive();
     el.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -248,6 +289,7 @@
       drag = { px: only.x, py: only.y, ox: S.x, oy: S.y, moved: 99 };
     } else if (pointers.size === 0) {
       drag = null;
+      endLive();
     }
   }
 
@@ -256,11 +298,14 @@
 
   el.addEventListener("wheel", function (e) {
     e.preventDefault();
+    beginLive();
     var factor = Math.pow(1.0018, -e.deltaY);
     zoomAt(S.zoom * factor, e.clientX, e.clientY);
+    scheduleCommit();
   }, { passive: false });
 
   window.addEventListener("resize", function () {
+    endLive();
     layout();
   });
 
@@ -471,16 +516,18 @@
 
   /* ---------------- public API ---------------- */
   window.SVGViewer = {
-    fit: function () { S.zoom = 1; S.x = 0; S.y = 0; apply(); },
-    setZoom: function (z) { S.zoom = clamp(z, 0.02, 40); apply(); },
+    fit: function () { S.zoom = 1; S.x = 0; S.y = 0; apply(); endLive(); },
+    setZoom: function (z) { S.zoom = clamp(z, 0.02, 40); apply(); endLive(); },
     zoomBy: function (factor) {
       zoomAt(S.zoom * factor, window.innerWidth / 2, window.innerHeight / 2);
+      endLive();
     },
     actualSize: function () {
       if (S.base <= 0) return;
       S.zoom = clamp(1 / S.base, 0.02, 40);
       S.x = 0; S.y = 0;
       apply();
+      endLive();
     },
     togglePlay: function () { setPaused(!S.paused); return S.paused; },
     setPaused: setPaused,
