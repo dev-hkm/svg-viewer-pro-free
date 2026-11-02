@@ -23,3 +23,7 @@ captures/
 # release notes (khong commit)
 changelog-*.html
 .tmp-svg/
+.workbuddy-ai/
+dist/
+*.aab
+*.idsig
