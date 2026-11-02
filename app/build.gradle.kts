@@ -13,14 +13,14 @@ val localProps = Properties().apply {
 
 android {
     namespace = "com.khanhminh.svgviewer"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.khanhminh.svgviewer"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 9
-        versionName = "1.5.0"
+        targetSdk = 36
+        versionCode = 10
+        versionName = "1.5.1"
         resourceConfigurations += listOf("vi", "en")
     }
 
